@@ -1,0 +1,47 @@
+#ifndef TYPES_H
+#define TYPES_H
+
+#include "common.h"
+
+
+typedef struct Program Program;
+struct Program {
+  byte* code;
+  size_t codeSize_bytes;
+  ptrdiff_t entrypoint; // offset into `self.code` to begin execution
+  // TODO symbol table for disassebly/debugging
+  // TODO comments so disassembly can include them
+};
+
+
+typedef struct Machine Machine;
+typedef struct StackFrame StackFrame;
+
+struct Machine {
+  byte* ip;
+  StackFrame* top;
+  struct retarray {
+    size_t cap;
+    word* bufp;
+  } retarray;
+  bool shouldHalt;
+  int exitcode;
+  Program* program; // a read-only borrow
+};
+int initMachine(Machine* out, Program* prog);
+void destroyMachine(Machine* machine);
+
+struct StackFrame {
+  StackFrame* prev;
+  word r[]; // `r` for register
+};
+void destroyStack(StackFrame* top);
+
+
+
+word readWord(byte** ipp);
+
+size_t readVarint(byte** ipp);
+
+
+#endif
