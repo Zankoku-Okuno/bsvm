@@ -1,5 +1,4 @@
-4273 766d 4578 6531
-0000 0009
-0000 0000
-00 00 00 00 00 00 00 00
-00
+4273 766d 4578 6531 # magic string
+0000 0001 # 1 byte of code
+0000 0000 # entrypoint is at offset 0
+00 # halt and catch fire

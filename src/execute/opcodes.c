@@ -2,8 +2,9 @@
 // It also serves as documentation of the ISA.
 
 
-// HALT 0x00
-// immediately exit with error code -1 (255)
+// HCF 0x00
+// "Halt and Catch Fire"
+// Immediately exit with error code -1 (255).
 //
 // This is not meant to be used as a real opcode, it's just here as a sentinel
 // value in case execution gets out of bounds. I chose all-zeros because I
@@ -15,20 +16,171 @@ void halt(Machine* self) {
   self->exitcode = -1;
 }
 
+// MOV 0x02 reg<dst> reg<src>
+static inline
+void move(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  self->top->r[dst] = self->top->r[src];
+}
 
+// MOVI 0x03 reg<dst> imm<src>
 static inline
 void moveImm(Machine* self) {
   size_t dst = readVarint(&self->ip);
-  word imm = readVarint(&self->ip);
-  self->top->r[dst] = imm;
+  uintptr_t imm = readVarint(&self->ip);
+  self->top->r[dst].bits = imm;
+}
+
+// LD 0x06 reg<dst> reg<src>
+// Load a word from the address in src and place it in dst.
+static inline
+void load(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  self->top->r[dst] = *self->top->r[src].wptr;
+}
+
+// ST 0x06 reg<dst> reg<src>
+// Store contents of the src register into memory pointed to by dst register.
+static inline
+void store(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  *self->top->r[dst].wptr = self->top->r[src];
 }
 
 
 static inline
+void add(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  self->top->r[dst].bits += self->top->r[src].bits;
+}
+
+static inline
 void addImm(Machine* self) {
   size_t dst = readVarint(&self->ip);
-  word imm = readVarint(&self->ip);
-  self->top->r[dst] += imm;
+  uintptr_t imm = readVarint(&self->ip);
+  self->top->r[dst].bits += imm;
+}
+
+static inline
+void sub(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  self->top->r[dst].bits -= self->top->r[src].bits;
+}
+
+static inline
+void subImm(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  uintptr_t imm = readVarint(&self->ip);
+  self->top->r[dst].bits -= imm;
+}
+
+// 0x14 MUL reg<dst> reg<src>
+// unsigned single-width multiply
+static inline
+void mul(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  self->top->r[dst].bits *= self->top->r[src].bits;
+}
+
+// 0x15 DMUL reg<dst-high> reg<dst-low> reg<src>
+// unsigned double-width multiply
+// dstHigh:dstLow <- dstLow * src
+static inline
+void dmul(Machine* self) {
+  size_t dstHigh = readVarint(&self->ip);
+  size_t dstLow = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  ulong a = self->top->r[dstLow].bits;
+  ulong b = self->top->r[src].bits;
+  ulong r = a * b;
+  self->top->r[dstLow].bits = (uintptr_t)r;
+  self->top->r[dstHigh].bits = (uintptr_t)(r >> sizeof(uintptr_t));
+}
+
+// 0x16 IMUL reg<dst> reg<src>
+// signed single-width multiply
+static inline
+void imul(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  self->top->r[dst].sbits *= self->top->r[src].sbits;
+}
+
+// 0x17 DIMUL reg<dst-high> reg<dst-low> reg<src>
+// signed double-width multiply
+static inline
+void dimul(Machine* self) {
+  // size_t dstHigh = readVarint(&self->ip);
+  // size_t dstLow = readVarint(&self->ip);
+  // size_t src = readVarint(&self->ip);
+  // slong a = self->top->r[dstLow].sbits;
+  // slong b = self->top->r[src].sbits;
+  // slong r = a * b;
+  fprintf(stderr, "oh jeez, I don't actually know what's normal for a signed double-width multiply\n");
+  exit(-1);
+  // I guess the low size-1 bits should go in low, plus the sign bit, and the high size-1 bits in high plus its own sign bit?
+  // self->top->r[dstLow].bits = (uintptr_t)r;
+  // self->top->r[dstHigh].bits = (uintptr_t)(r >> sizeof(uintptr_t));
+}
+
+// 0x1D DIVREM reg<dst> reg<rem> reg<src>
+// unsigned divide with remainder
+// dst <- dst / src ; rem <- dst % src
+static inline
+void divrem(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t rem = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  uintptr_t numer = self->top->r[dst].bits;
+  uintptr_t denom = self->top->r[src].bits;
+  uintptr_t d = numer / denom;
+  uintptr_t r = numer % denom;
+  self->top->r[dst].bits = d;
+  self->top->r[rem].bits = r;
+}
+
+// 0x1D DIVMOD reg<dst> reg<rem> reg<src>
+// unsigned divide with remainder
+// dst <- dst / src ; rem <- dst % src
+static inline
+void divmod(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t rem = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  uintptr_t numer = self->top->r[dst].bits;
+  uintptr_t denom = self->top->r[src].bits;
+  // FIXME check that denom /= 0, but then what?
+  uintptr_t d = numer / denom;
+  uintptr_t r = numer % denom;
+  self->top->r[dst].bits = d;
+  self->top->r[rem].bits = r;
+}
+
+// 0x1F IDIVMOD reg<dst> reg<rem> reg<src>
+// signed divide with remainder
+static inline
+void idivmod(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t rem = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  intptr_t numer = self->top->r[dst].sbits;
+  intptr_t denom = self->top->r[src].sbits;
+  // FIXME check that denom /= 0, but then what?
+  intptr_t d = numer / denom;
+  intptr_t r = numer % denom;
+  // since C is round-to-zero, but modular arithmetic woudl prefer round-to-minus-infinity
+  if (r < 0) {
+    d -= 1;
+    r += denom;
+  }
+  self->top->r[dst].sbits = d;
+  self->top->r[rem].sbits = r;
 }
 
 // 0x81 JAL word<offset>, imm<n>, n * reg<src> 
@@ -75,7 +227,7 @@ static inline
 void ret(Machine* self) {
   // determine jump location
   size_t link = readVarint(&self->ip);
-  byte* tgt = (byte*)self->top->r[link];
+  byte* tgt = self->top->r[link].bptr;
   // setup return values
   size_t retarray_count = readVarint(&self->ip);
   if (retarray_count > self->retarray.cap) {
@@ -112,13 +264,13 @@ void into(Machine* self) {
 static inline
 void _exit(Machine* self) {
   size_t ecReg = readVarint(&self->ip);
-  self->exitcode = self->top->r[ecReg];
+  self->exitcode = self->top->r[ecReg].byte.low;
   self->shouldHalt = true;
 }
 
 // used internally for testing while I develop
 static inline
 void test(Machine* self) {
-  word src = readVarint(&self->ip);
-  fprintf(stdout, "result is %lx\n", self->top->r[src]);
+  size_t src = readVarint(&self->ip);
+  fprintf(stdout, "result is %lx\n", self->top->r[src].bits);
 }

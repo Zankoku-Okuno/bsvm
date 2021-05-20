@@ -38,10 +38,9 @@ struct StackFrame {
 void destroyStack(StackFrame* top);
 
 
+uintptr_t readWord(byte** ipp);
 
-word readWord(byte** ipp);
-
-size_t readVarint(byte** ipp);
+uintptr_t readVarint(byte** ipp);
 
 
 #endif

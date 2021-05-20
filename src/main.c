@@ -16,6 +16,7 @@ int main(int argc, char* argv[]) {
   readProgram(&prog, argv[1]);
   initMachine(&machine, &prog);
   fprintf(stdout, "executing...\n");
+  // TODO I'm debating whether to use longjmp instead of testing a boolean every time
   while(!machine.shouldHalt) {
     cycle(&machine);
   }

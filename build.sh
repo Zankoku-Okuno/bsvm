@@ -6,4 +6,4 @@ cd "$here"
 
 mkdir -p bin
 
-gcc -std=c99 -I src -Wall -Werror src/*.c -o bin/bsvm
+gcc -std=c11 -I src -Wall -Werror src/*.c -o bin/bsvm
