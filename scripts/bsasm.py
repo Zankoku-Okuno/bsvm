@@ -428,12 +428,12 @@ class Asm:
       nonlocal toks
       if not toks: return None
       tok = toks[0]
-      if re.match (r"^&@?[a-zA-Z0-9._-]+$", toks[0]):
+      if re.match (r"^[&@][a-zA-Z0-9._-]+$", toks[0]):
         name = tok[1:]
-        if name[0] == '@':
+        if tok[0] == '@':
           if self.functionName is None:
             raise AsmExn("local label outside function")
-          name = self.functionName + '.' + name[1:]
+          name = self.functionName + '.' + name
         toks = toks[1:]
       else:
         return None
