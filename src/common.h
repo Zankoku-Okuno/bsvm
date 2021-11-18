@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -37,6 +38,7 @@ union word {
   intptr_t sbits;
   word* wptr;
   byte* bptr;
+  FILE* fptr;
   ptrdiff_t offset;
   struct {
     # if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__

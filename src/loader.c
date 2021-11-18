@@ -1,6 +1,5 @@
 #include "common.h"
 #include "types.h"
-#include <stdio.h>
 
 #include "loader.h"
 
@@ -35,14 +34,14 @@ int readProgram(Program* out, const char* filename) {
     }
     out->entrypoint = entrypoint;
   }
-  // TODO more header info (size/location of symtab and comments
-  // next `out->codeSize_bytes` is the bytecode
+  // next `out->codeSize_bytes` bytes is the bytecode
   {
     byte* codebuf = malloc(sizeof(byte) * out->codeSize_bytes);
     size_t read_bytes = fread(codebuf, 1, out->codeSize_bytes, fp);
     if (read_bytes != out->codeSize_bytes) { free(codebuf); goto badexit; }
     out->code = codebuf;
   }
+  // TODO more header info (size/location of symtab and comments) after the bytecode, probably aligned to 16 bytes
   fclose(fp);
   return 0;
   badexit: {
