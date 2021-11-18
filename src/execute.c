@@ -111,6 +111,15 @@ void cycle(Machine* self) {
     // string operations? like what? codec-y stuff?
 
     // ... 0xC0-0xFF i/o
+    // 0xC0 - 0xCF environment access
+    case 0xC0: strm(self); break;
+
+    // 0xD0 - 0xDF file manipulation
+    // 0xD0 fopen
+    // 0xD1 fclose
+    // 0xD2 fread
+    case 0xD3: writeFile(self); break;
+
     case 0xFF: test(self); break;
     default: {
       fprintf(stderr, "unexpected opcode %x\n", *(self->ip - 1));

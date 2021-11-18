@@ -1,0 +1,18 @@
+.wordsize 8
+.endian little
+
+.func main
+  ; write msg to stdout
+  lia %1, &msg
+  strm %0, 1
+  fwr %2, %0, %1
+  ; exit(written)
+  exit %2
+
+.word &msg.start, &msg.end
+msg:
+.word &msg.end - &msg.start
+msg.start:
+.ascii 'Hello',10
+msg.end:
+.ascii 0

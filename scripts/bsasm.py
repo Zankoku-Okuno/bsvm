@@ -16,13 +16,14 @@ def main():
           asm.asmLine(line)
     asm.finalize_function()
     for listener in asm.rewrites.values():
-      for off, expr in listener.items():
+      for off, stuff in listener.items():
+        size, endianness, expr = stuff
         try:
           val = expr(asm)
         except ForwardReference as exn:
           name, _ = exn.args
           raise AsmExn("undefined label: {}".format(name))
-        asm.code[off:off+4] = val.to_bytes(4, 'big', signed=True)
+        asm.code[off:off+size] = val.to_bytes(size, endianness, signed=True)
   except AsmExn as exn:
     print("{} line {}: {}".format(asm.file, asm.lineno, exn), file=sys.stderr)
     exit(1)
@@ -39,6 +40,7 @@ class AsmExn(Exception):
 class Asm:
   def __init__(self):
     self.wordSize = None
+    self.endianness = None
     self.lbltab = dict()
     self.consttab = dict()
     self.regtab = None
@@ -58,7 +60,7 @@ class Asm:
   def asmLine(self, line):
     self.lineno += 1
     line = line.rstrip()
-    if not line or line[0] == ';':
+    if not line or re.match(r'\s*;', line):
       return
     elif line[0] == ' ':
       self.asmInstruction(line.lstrip())
@@ -106,17 +108,17 @@ class Asm:
     try:
       f = getattr(self, "OP_" + opcode.lower())
     except AttributeError:
-      raise AsmExn("unknown directive .{}".format(directive))
+      raise AsmExn("unknown instruction {}".format(repr(opcode)))
     f(*args)
   
   def append(self, code):
     self.code += code
     self.offset += len(code)
-  def suspend(self, waitOn, expr):
+  def suspend(self, waitOn, expr, size=4, endianness='big'):
     if waitOn not in  self.rewrites:
       self.rewrites[waitOn] = dict()
-    self.rewrites[waitOn][self.offset] = expr
-    self.append((0).to_bytes(4, 'big', signed=True))
+    self.rewrites[waitOn][self.offset] = (size, endianness, expr)
+    self.append((0).to_bytes(size, 'big'))
   # TODO fill placeholder
 
   def arg(self, text, allow):
@@ -151,6 +153,11 @@ class Asm:
     else:
       raise AsmExn("unsupported word size: {}".format(args))
     self.consttab["__wordSize__"] = self.wordSize
+  def DIR_endian(self, args):
+    if self.endianness is None:
+      self.endianness = args
+    else:
+      raise AsmExn("endianness is already defined")
   def DIR_func(self, args):
     # finalize last function
     self.finalize_function()
@@ -185,6 +192,47 @@ class Asm:
     body = args[len(name):].strip()
     _, value = self.arg(body, 'i')
     self.consttab[name] = value
+  def DIR_word(self, args):
+    args = [arg.strip() for arg in args.split(',')]
+    for arg in args:
+      try:
+        _, imm = self.arg(arg, 'i')
+        fref = None
+      except ParseExn as exn:
+        raise AsmExn("parse error: {}".format(*exn.args))
+      except ForwardReference as exn:
+        fref, expr = exn.args
+      if self.wordSize is None:
+        raise AsmExn("unknown word size")
+      if self.endianness is None:
+        raise AsmExn("unknown endianness")
+      if fref is None:
+        self.append(imm.to_bytes(self.wordSize, self.endianness, signed=True))
+      else:
+        self.suspend(fref, expr, size=self.wordSize, endianness=self.endianness)
+  def DIR_ascii(self, args):
+    text = ""
+    while True:
+      m = re.match(r"'((?:[^']+|'')+)'", args)
+      if m:
+        text += re.sub("''", "'", m.group(1))
+        args = args[len(m.group(0)):].lstrip()
+        if args and args[0] == ',':
+          args = args[1:].lstrip()
+          continue
+        else:
+          break
+      m = re.match(r"[0-9]+", args)
+      if m:
+        text += chr(int(m.group(0)))
+        args = args[len(m.group(0)):].lstrip()
+        if args and args[0] == ',':
+          args = args[1:].lstrip()
+          continue
+        else:
+          break
+      raise AsmExn("invalid ascii syntax: {}".format(repr(args)))
+    self.append(text.encode('ascii'))
 
   def OP_hcf(self):
     self.append(b"\x00")
@@ -271,6 +319,8 @@ class Asm:
     self.append(b"\x86" + mkVarint(src))
   ###### String Operations ######
   ###### Input/Output ######
+  def OP_strm(self, a, b): self.op_reg_imm(a, b, opcode=0xC0)
+  def OP_fwr(self, a, b, c): self.op_reg_reg_reg(a, b, c, 0xD3)
   ###### Done wth Opcodes ######
 
   def op_reg_reg(self, a, b, opcode):
@@ -284,7 +334,11 @@ class Asm:
       self.append(whenReg.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src))
     elif sType == 'i':
       self.append(whenImm.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src))
-  def op_reg_reg_reg(self, opcode, a, b, c):
+  def op_reg_imm(self, a, b, opcode):
+    _, dst = self.arg(a, 'r')
+    _, src = self.arg(b, 'i')
+    self.append(opcode.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src))
+  def op_reg_reg_reg(self, a, b, c, opcode):
     _, r1 = self.arg(a, 'r')
     _, r2 = self.arg(b, 'r')
     _, r3 = self.arg(c, 'r')
@@ -448,18 +502,18 @@ class Asm:
       else:
         return None
       def out(asm):
-        nonlocal name
+        nonlocal name, wholeExpr
         try:
           return asm.lbltab[name]
         except KeyError:
-          raise ForwardReference(name, out)
+          raise ForwardReference(name, wholeExpr)
       return out
-    e = takeSum()
-    if e is None:
+    wholeExpr = takeSum()
+    if wholeExpr is None:
       raise ParseExn("invalid expression")
     if toks:
       raise ParseExn("extra tokens: {}".format(toks))
-    return e
+    return wholeExpr
 
 def mkVarint(n):
   out = b""

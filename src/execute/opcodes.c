@@ -779,6 +779,57 @@ void exit_(Machine* self) {
   self->shouldHalt = true;
 }
 
+// 0xC0 STRM r<dst> imm<id>
+// Load a file handle into the destination based on the id: either
+//   standard input (id = 0),
+//   standard outut (id = 1), or
+//   standard error (id = 3).
+// Other values of id are leave the destination register undefined
+static inline
+void strm(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t id = readVarint(&self->ip);
+  FILE* res;
+  switch (id) {
+    case 0: res = stdin; break;
+    case 1: res = stdout; break;
+    case 2: res = stderr; break;
+    default: res = NULL; break;
+  }
+  self->top->r[dst].fptr = res;
+}
+
+// 0xC1 ENV r<dst>, r<src>
+// Lookup the variable name from src in the process' environment.
+// Store pointer to the result in the dst register.
+// Both strings are NUL-terminated.
+// If the environment does not define the given variable, the dst is set to zero.
+
+// 0xC2 ARGC r<dst>
+// Store the process' number of arguments into the dst register.
+// The process name is counted as the first argument. TODO is it?
+
+// 0xC3 ARGV r<dst>, r<src>
+// Get the argument indexed by the contents of src.
+// Save a pointer to the result in dst.
+// The result string is NUL-terminated.
+// The value of the dst register is undefined if the src index is gte argc.
+
+// 0xD3 FWR r<dst>, r<fp>, r<src>
+// Write bytes from src to a file handle stored in fp.
+// The src register should contain a pointer to a word specifying how many bytes
+// to write, immediately followed by that many bytes.
+// The number of bytes actually written is then stored in dst.
+static inline
+void writeFile(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t fpReg = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  word* str = self->top->r[src].wptr;
+  size_t written = fwrite(str + 1, 1, str->bits, self->top->r[fpReg].fptr);
+  self->top->r[dst].bits = written;
+  }
+
 // used internally for testing while I develop
 static inline
 void test(Machine* self) {
