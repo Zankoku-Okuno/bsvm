@@ -5,7 +5,7 @@ int initMachine(Machine* out, Program* prog) {
   // setup code and instruction pointer
   out->program = prog;
   out->ip = prog->code + prog->entrypoint;
-  size_t startFrameRegisters_count = readWord(&out->ip);
+  size_t startFrameRegisters_count = readU32(&out->ip);
   // setup main stack frame
   out->top = malloc(sizeof(StackFrame) + sizeof(word) * startFrameRegisters_count);
   out->top->prev = NULL;
@@ -32,8 +32,28 @@ void destroyStack(StackFrame* top) {
   top->prev = NULL;
 }
 
+uint32_t readU32(byte** ipp) {
+  byte* ip = *ipp;
+  int32_t out = 0;
+  for (int i = 0; i < 4; ++i) {
+    out = (out << 8) + *ip++;
+  }
+  *ipp = ip;
+  return out;
+}
 
-uintptr_t readWord(byte** ipp) {
+int32_t readI32(byte** ipp) {
+  uint32_t u = readU32(ipp);
+  if (u & 0x80000000) {
+    return -((int32_t)(~u) + 1);
+  }
+  else {
+    return (int32_t)(u);
+  }
+}
+
+
+uintptr_t readWordOld(byte** ipp) {
   uintptr_t out = 0;
   byte* ip = *ipp;
   for (int i = 0; i < sizeof(word); ++i) {

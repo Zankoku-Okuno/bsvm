@@ -70,14 +70,14 @@ void lea(Machine* self) {
   self->top->r[dst].wptr = &self->top->r[src];
 }
 
-// 0x0B LIA r<dst>, word<offset>
+// 0x0B LIA r<dst>, i32<offset>
 // "Load IP-relative Address" stores `ip + offset` into dst.
 // The `ip` used is at the start of this instruction.
 static inline
 void lia(Machine* self) {
   byte* here = self->ip - 1;
   size_t dst = readVarint(&self->ip);
-  ptrdiff_t offset = readWord(&self->ip);
+  ptrdiff_t offset = readI32(&self->ip);
   self->top->r[dst].bptr = here + offset;
 }
 
@@ -130,6 +130,33 @@ void subImm(Machine* self) {
   uintptr_t imm = readVarint(&self->ip);
   self->top->r[dst].bits -= imm;
 }
+
+// 0x14 ADC r<carry>, r<dst>, r<src>
+static inline
+void adc(Machine* self) {
+  size_t carry = readVarint(&self->ip);
+  size_t dst = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  uintptr_t val0 = self->top->r[dst].bits;
+  uintptr_t val = val0 + self->top->r[src].bits
+                + (self->top->r[carry].bits ? 1 : 0);
+  self->top->r[dst].bits = val;
+  self->top->r[carry].bits = val < val0 ? 1 : 0;
+}
+
+// 0x16 SBB r<borrow>, r<dst>, r<src>
+static inline
+void sbb(Machine* self) {
+  size_t borrow = readVarint(&self->ip);
+  size_t dst = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  uintptr_t val0 = self->top->r[dst].bits;
+  uintptr_t val = val0 - self->top->r[src].bits
+                - (self->top->r[borrow].bits ? 1 : 0);
+  self->top->r[dst].bits = val;
+  self->top->r[borrow].bits = val > val0 ? 1 : 0;
+}
+
 
 // 0x17 NEG r<dst>, r<src>
 // arithmetic negate
@@ -614,25 +641,25 @@ void computedJump(Machine* self) {
   self->ip = self->top->r[src].bptr;
 }
 
-// 0x72 CJMP r<cond>, word<offset>
+// 0x72 CJMP r<cond>, i32<offset>
 // if cond is non-zero, jump to `start address of this instruction + offset`
 static inline
 void cjump(Machine* self) {
   byte* here = self->ip - 1;
   size_t cond = readVarint(&self->ip);
-  ptrdiff_t offset = readWord(&self->ip);
+  ptrdiff_t offset = readI32(&self->ip);
   if (self->top->r[cond].bits) {
     self->ip = here + offset;
   }
 }
 
-// 0x73 ZJMP r<cond>, word<offset>
+// 0x73 ZJMP r<cond>, i32<offset>
 // if cond is zero, jump to `start address of this instruction + offset`
 static inline
 void zjump(Machine* self) {
   byte* here = self->ip - 1;
   size_t cond = readVarint(&self->ip);
-  ptrdiff_t offset = readWord(&self->ip);
+  ptrdiff_t offset = readI32(&self->ip);
   if (!self->top->r[cond].bits) {
     self->ip = here + offset;
   }
@@ -645,7 +672,7 @@ void zjump(Machine* self) {
  ************************************/
 
 
-// 0x81 JAL word<offset>, imm<n>, n * r<src>
+// 0x81 JAL i32<offset>, imm<n>, n * r<src>
 // Jump and link to `ip + offset`.
 //
 // Save the address of the next instruction into the callee's register zero.
@@ -659,9 +686,9 @@ static inline
 void jal(Machine* self) {
   // accumulate information about callee
   byte* here = self->ip - 1; // WARNING have to backup one because the opcode has already been read
-  ptrdiff_t offset = readWord(&self->ip);
+  ptrdiff_t offset = readI32(&self->ip);
   byte* tgt = here + offset;
-  size_t calleeSize_words = readWord(&tgt);
+  size_t calleeSize_words = readU32(&tgt);
   // setup callee stack frame
   StackFrame* callee = malloc(sizeof(StackFrame) + sizeof(word) * calleeSize_words);
   callee->prev = self->top;
@@ -683,9 +710,9 @@ void jal(Machine* self) {
 static inline
 void jar(Machine* self) {
   byte* here = self->ip - 1;
-  ptrdiff_t offset = readWord(&self->ip);
+  ptrdiff_t offset = readI32(&self->ip);
   byte* tgt = here + offset;
-  size_t calleeSize_words = readWord(&tgt);
+  size_t calleeSize_words = readU32(&tgt);
   StackFrame* callee = malloc(sizeof(StackFrame) + sizeof(word) * calleeSize_words);
   callee->prev = self->top->prev; // <-- this is different from jal
   size_t argument_count = readVarint(&self->ip);

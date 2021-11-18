@@ -21,7 +21,7 @@ def main():
         except ForwardReference as exn:
           name, _ = exn.args
           raise AsmExn("undefined label: {}".format(name))
-        asm.code[off:off+asm.wordSize] = val.to_bytes(asm.wordSize, 'big', signed=True)
+        asm.code[off:off+4] = val.to_bytes(4, 'big', signed=True)
   except AsmExn as exn:
     print("{} line {}: {}".format(asm.file, asm.lineno, exn), file=sys.stderr)
     exit(1)
@@ -98,8 +98,6 @@ class Asm:
     f(args)
 
   def asmInstruction(self, line):
-    if self.wordSize is None:
-      raise AsmExn("word size must be defined before instruction output")
     opcode = line.split(' ')[0]
     args = [ arg.strip() for arg in line[len(opcode):].split(',') if arg.strip() ]
     # print("{}: {}".format(opcode, repr(args))) # TODO
@@ -116,7 +114,7 @@ class Asm:
     if waitOn not in  self.rewrites:
       self.rewrites[waitOn] = dict()
     self.rewrites[waitOn][self.offset] = expr
-    self.append((0).to_bytes(self.wordSize, 'big', signed=True))
+    self.append((0).to_bytes(4, 'big', signed=True))
   # TODO fill placeholder
 
   def arg(self, text, allow):
@@ -146,8 +144,6 @@ class Asm:
       raise AsmExn("unsupported word size: {}".format(args))
     self.consttab["__wordSize__"] = self.wordSize
   def DIR_func(self, args):
-    if self.wordSize is None:
-      raise AsmExn("word size must be defined before function definition")
     args = args.strip().split(' ')
     if len(args) == 0:
       raise AsmExn("missing function name")
@@ -170,7 +166,7 @@ class Asm:
         pass
       elif re.match(r"^[a-zA-Z0-9._-]+$", param):
         self.regtab[param] = i + 1
-    self.append(self.functionSize.to_bytes(self.wordSize, 'big'))
+    self.append(self.functionSize.to_bytes(4, 'big'))
   def DIR_def(self, args):
     tmp = args.strip().split(" ")
     if len(tmp) < 2:
@@ -197,7 +193,9 @@ class Asm:
   ###### Arithmetic ######
   def OP_add(self, a, b): self.op_reg_regimm(a, b, whenReg=0x10, whenImm=0x11)
   def OP_sub(self, a, b): self.op_reg_regimm(a, b, whenReg=0x12, whenImm=0x13)
-  # 0x14–0x16
+  def OP_adc(self, a, b, c): self.op_reg_reg_reg(a, b, c, 0x14)
+  # 0x15
+  def OP_sbb(self, a, b, c): self.op_reg_reg_reg(a, b, c, 0x16)
   def OP_neg(self, a, b): self.op_reg_reg(a, b, 0x17)
   def OP_mul(self, a, b): self.op_reg_reg(a, b, 0x18)
   def OP_muc(self, a, b, c): op_reg_reg_reg(a, b, c, 0x19)
@@ -313,7 +311,7 @@ class Asm:
       fref, expr = exn.args
     if fref is None:
       imm -= self.offset
-      self.append(opcode.to_bytes(1, 'big') + mkVarint(dst) + imm.to_bytes(self.wordSize, 'big', signed=True))
+      self.append(opcode.to_bytes(1, 'big') + mkVarint(dst) + imm.to_bytes(4, 'big', signed=True))
     else:
       instrAddr = self.offset
       self.append(opcode.to_bytes(1, 'big') + mkVarint(dst))
@@ -329,7 +327,7 @@ class Asm:
     instrAddr = self.offset
     self.append(opcode.to_bytes(1, 'big'))
     if fref is None:
-      self.append((imm - instrAddr).to_bytes(self.wordSize, 'big', signed=True))
+      self.append((imm - instrAddr).to_bytes(4, 'big', signed=True))
     else:
       self.suspend(fref, lambda asm: expr(asm) - instrAddr)
     self.append(mkVarint(n))

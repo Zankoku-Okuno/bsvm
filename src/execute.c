@@ -28,9 +28,9 @@ void cycle(Machine* self) {
     case 0x11: addImm(self); break;
     case 0x12: sub(self); break;
     case 0x13: subImm(self); break;
-    // case 0x14 adc
-    // case 0x15 cc (clear carry) // FIXME would be a set carry
-    // case 0x16 subb ?
+    case 0x14: adc(self); break;
+    // 0x15
+    case 0x16: sbb(self); break;
     case 0x17: neg(self); break;
     case 0x18: mul(self); break;
     case 0x19: muc(self); break;
@@ -63,7 +63,7 @@ void cycle(Machine* self) {
     case 0x40: vmAlloc(self); break;
     case 0x41: vmFree(self); break;
     // mcpy r<dst>, r<src>, r<len>
-    // mset r<dst>, r<len>, r<src>, r<srcLen> // cycle through tsrcLen chars of src, filling dst up to len chars
+    // mset r<dst>, r<len>, r<src>, r<srcLen> // ??? cycle through srcLen chars of src, filling dst up to len chars
     // mcmp r<dst>, r<src1>, r<src2>, r<len>
     // mcat r<dst>, imm<n>, r<lengths -> word[n]>, r<strs -> byte*[n]>
     // mbrk r<dst>, r<src>, r<len>, r<chrs>, r<numChrs> // like C strpbrk
@@ -91,8 +91,8 @@ void cycle(Machine* self) {
     case 0x5F: setLteImm(self); break;
 
     // 0x60 - 0x6F: conditioned operations
-    // cmov, cld, cst
-    // zcmov, zcld, zcst
+    // TODO cmov, cld, cst
+    // TODO zmov, zld, zst
 
     // 0x70 - 0x7F: jumps
     case 0x70: computedJump(self); break;
@@ -108,7 +108,7 @@ void cycle(Machine* self) {
     case 0x85: into(self); break;
     case 0x86: exit_(self); break;
     // 0x87
-    // string operations
+    // string operations? like what? codec-y stuff?
 
     // ... 0xC0-0xFF i/o
     case 0xFF: test(self); break;
