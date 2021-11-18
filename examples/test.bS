@@ -1,9 +1,9 @@
-.func main 0
+.func main
   jal &getnum
   into %0
   add %0, 52
   exit %0
 
-.func getnum 1
+.func getnum
   mov %1, 32
   ret %1

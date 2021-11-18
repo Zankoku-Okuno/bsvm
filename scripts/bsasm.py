@@ -14,6 +14,7 @@ def main():
         asm.lineno = 0
         for line in fp.readlines():
           asm.asmLine(line)
+    asm.finalize_function()
     for listener in asm.rewrites.values():
       for off, expr in listener.items():
         try:
@@ -46,6 +47,7 @@ class Asm:
     self.file = None
     self.lineno = 0
     self.functionName = None
+    self.functionAddr = None
     self.functionSize = None
     self.prevLbl = None
     # output
@@ -121,7 +123,9 @@ class Asm:
     # print("{} :: {}".format(repr(text), type(text)))
     if 'r' in allow:
       if re.match(r"^%[0-9]+$", text):
-        return ('r', int(text[1:]))
+        r = int(text[1:])
+        self.functionSize = max(self.functionSize, r + 1)
+        return ('r', r)
       if re.match(r"^[a-zA-Z0-9._-]+$", text):
         if text in self.regtab:
           return ('r', self.regtab[text])
@@ -132,6 +136,10 @@ class Asm:
         raise AsmExn("parse error: {}".format(*exn.args))
       return 'i', e(self)
     raise AsmExn("bad argument (expecting {}): {}".format(allow, text))
+  def finalize_function(self):
+    if self.functionAddr is not None:
+      self.code[self.functionAddr:self.functionAddr+4] \
+        = self.functionSize.to_bytes(4, 'big')
 
   def DIR_wordsize(self, args):
     if self.wordSize is not None:
@@ -144,29 +152,31 @@ class Asm:
       raise AsmExn("unsupported word size: {}".format(args))
     self.consttab["__wordSize__"] = self.wordSize
   def DIR_func(self, args):
+    # finalize last function
+    self.finalize_function()
+    # extract arguments
     args = args.strip().split(' ')
     if len(args) == 0:
       raise AsmExn("missing function name")
-    elif len(args) == 1:
-      raise AsmExn("missing function maximum register")
     else:
-      name, size, params = args[0], args[1], args[2:]
+      name, params = args[0], args[1:]
+    # define function name/label
     if re.match(r"^[a-zA-Z0-9._-]+$", name):
       self.functionName = name
       self.add_label(name)
     else:
       raise AsmExn("bad function name: {}".format(name))
-    if re.match(r"^[0-9]+$", size):
-      self.functionSize = int(size) + 1
-    else:
-      raise AsmExn("bad function maximum register: {}".format(size))
+    # set up a suspended function header
+    self.functionSize = 1 + len(params)
+    self.functionAddr = self.offset
+    self.append((0).to_bytes(4, 'big'))
+    # initialize register names for parameters
     self.regtab = dict()
     for i, param in enumerate(params):
       if param == "_":
         pass
       elif re.match(r"^[a-zA-Z0-9._-]+$", param):
         self.regtab[param] = i + 1
-    self.append(self.functionSize.to_bytes(4, 'big'))
   def DIR_def(self, args):
     tmp = args.strip().split(" ")
     if len(tmp) < 2:

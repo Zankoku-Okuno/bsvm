@@ -13,7 +13,10 @@ int main(int argc, char* argv[]) {
   Program prog;
   Machine machine;
   // fprintf(stderr, "reading...\n");
-  readProgram(&prog, argv[1]);
+  if (readProgram(&prog, argv[1])) {
+    fprintf(stderr, "[ERROR] when reading program\n");
+    return -1;
+  }
   // fprintf(stderr, "initializing...\n");
   initMachine(&machine, &prog);
   // fprintf(stderr, "executing...\n");

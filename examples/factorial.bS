@@ -1,14 +1,14 @@
-.func main 1
+.func main
   mov %1, 5
   jal &fac, %1
   into %1
   exit %1
 
-.func fac 2 n
+.func fac n
   mov %2, 1
   jar &fac.worker, n, %2
 
-.func fac.worker 2 n acc
+.func fac.worker n acc
   zjmp n, @return
   mul acc, n
   sub n, 1
