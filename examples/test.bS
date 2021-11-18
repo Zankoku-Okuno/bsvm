@@ -1,0 +1,11 @@
+.wordsize 8
+
+.func main 0
+  jal &getnum
+  into r0
+  add r0, 52
+  exit r0
+
+.func getnum 1
+  mov r1, 32
+  ret r0, r1

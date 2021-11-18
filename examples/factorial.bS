@@ -1,0 +1,19 @@
+.wordsize 8
+
+.func main 1
+  mov r1, 5
+  jal &fac, r1
+  into r1
+  exit r1
+
+.func fac 2 n
+  mov r2, 1
+  jar &fac.worker, r1, r2
+
+.func fac.worker 2 n acc
+  zjmp r1, &@return
+  mul r2, r1
+  sub r1, 1
+  jar &fac.worker, r1, r2
+@return:
+  ret r0, r2
