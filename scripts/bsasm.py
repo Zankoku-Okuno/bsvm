@@ -122,8 +122,11 @@ class Asm:
   def arg(self, text, allow):
     # print("{} :: {}".format(repr(text), type(text)))
     if 'r' in allow:
-      if re.match(r"^r[0-9]+$", text):
+      if re.match(r"^%[0-9]+$", text):
         return ('r', int(text[1:]))
+      if re.match(r"^[a-zA-Z0-9._-]+$", text):
+        if text in self.regtab:
+          return ('r', self.regtab[text])
     if 'i' in allow:
       try:
         e = self.parseExpr(text)
@@ -162,12 +165,11 @@ class Asm:
     else:
       raise AsmExn("bad function maximum register: {}".format(size))
     self.regtab = dict()
-
     for i, param in enumerate(params):
       if param == "_":
         pass
       elif re.match(r"^[a-zA-Z0-9._-]+$", param):
-        self.regtab[param] = i
+        self.regtab[param] = i + 1
     self.append(self.functionSize.to_bytes(self.wordSize, 'big'))
   def DIR_def(self, args):
     tmp = args.strip().split(" ")
@@ -254,14 +256,8 @@ class Asm:
   def OP_jal(self, a, *bs): self.op_off_regs(a, *bs, opcode=0x81)
   # 0x82
   def OP_jar(self, a, *bs): self.op_off_regs(a, *bs, opcode=0x83)
-  def OP_ret(self, a, *bs): self.op_reg_regs(a, *bs, opcode=0x84)
-  def OP_into(self, *args):
-    n = len(args)
-    dsts = [self.arg(a, 'r')[1] for a in args]
-    instr = b"\x85" + mkVarint(n)
-    for dst in dsts:
-      instr += mkVarint(dst)
-    self.append(instr)
+  def OP_ret(self, *args): self.op_regs(*args, opcode=0x84)
+  def OP_into(self, *args): self.op_regs(*args, opcode=0x85)
   def OP_exit(self, a):
     _, src = self.arg(a, 'r')
     self.append(b"\x86" + mkVarint(src))
@@ -293,6 +289,13 @@ class Asm:
       self.append(whenReg.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src) + mkVarint(amt))
     elif aType == 'i':
       self.append(whemImm.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src) + mkVarint(amt))
+  def op_regs(self, *args, opcode):
+    n = len(args)
+    srcs = [self.arg(a ,'r')[1] for a in args]
+    instr = opcode.to_bytes(1, 'big') + mkVarint(n)
+    for src in srcs:
+      instr += mkVarint(src)
+    self.append(instr)
   def op_reg_regs(self, a, *bs, opcode):
     _, dst = self.arg(a, 'r')
     n = len(bs)

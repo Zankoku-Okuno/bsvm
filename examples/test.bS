@@ -2,10 +2,10 @@
 
 .func main 0
   jal &getnum
-  into r0
-  add r0, 52
-  exit r0
+  into %0
+  add %0, 52
+  exit %0
 
 .func getnum 1
-  mov r1, 32
-  ret r0, r1
+  mov %1, 32
+  ret %0, %1

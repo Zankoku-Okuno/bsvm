@@ -699,9 +699,9 @@ void jar(Machine* self) {
   self->ip = tgt;
 }
 
-// 0x84 RET r<link>, imm<n>, n * r<src...>
+// 0x84 RET imm<n>, n * r<src...>
 // Initialize n return values from <src...> registers, then jump to the contents
-// of the <link> register and destroy this stack frame.
+// of register zero and destroy this stack frame.
 //
 // Internally, there's a machine-wide array of return values (all word-sized).
 // This is grown as necessary, then by reading from the callee frame. This
@@ -711,8 +711,7 @@ void jar(Machine* self) {
 static inline
 void ret(Machine* self) {
   // determine jump location
-  size_t link = readVarint(&self->ip);
-  byte* tgt = self->top->r[link].bptr;
+  byte* tgt = self->top->r[0].bptr;
   // setup return values
   size_t retarray_count = readVarint(&self->ip);
   if (retarray_count > self->retarray.cap) {

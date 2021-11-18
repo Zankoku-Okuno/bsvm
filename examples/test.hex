@@ -1,5 +1,5 @@
 4273 766d 4578 6531
-0000 0029 # size of code
+0000 0028 # size of code
 0000 0000 # entrypoint
 
 # main
@@ -12,5 +12,5 @@
 # getnum
 0000 0000 0000 0002
   03 01 20 # movi r1, 32
-  84 00  01  01 # ret r0, r1
+  84 01  01 # ret r1
 
