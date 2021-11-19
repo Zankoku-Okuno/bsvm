@@ -454,6 +454,27 @@ void vmFree(Machine* self) {
   }
 }
 
+// 0x42 RNEW r<ptr>, r<src>
+// Reallocate a `NEW`-allocated pointer to be a new size.
+static inline
+void vmRealloc(Machine* self) {
+  size_t ptr = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  self->top->r[ptr].bptr = realloc(self->top->r[ptr].bptr, self->top->r[src].bits);
+}
+
+// 0x44 MMOV r<dst>, r<src>, r<len>
+// Copy len bytes from src to dst.
+//
+// This works even when the src/dst memory regions overlap.
+static inline
+void memMove(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  size_t len = readVarint(&self->ip);
+  memmove(self->top->r[dst].bptr, self->top->r[src].bptr, self->top->r[len].bits);
+}
+
 
 /************************************
  Comparisons
@@ -469,6 +490,17 @@ void bitTest(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t src = readVarint(&self->ip);
   self->top->r[dst].bits = (self->top->r[src].bits & mask) ? 1 : 0;
+}
+
+// 0x51 NOT r<dst>, r<src>
+// Logical not.
+//
+// Store 1 in dst if src is zero, esle store 0 in dst.
+static inline
+void not(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  self->top->r[dst].bits = (self->top->r[src].bits == 0) ? 1 : 0;
 }
 
 // 0x52 ANY r<dst>, imm<n>, n * r<src...>
@@ -629,6 +661,59 @@ void setLteImm(Machine* self) {
 
 
 /************************************
+ Conditioned Operations
+ ************************************/
+
+// 0x60 CMOV r<cond>, r<dst>, r<src>
+// Move src to dst when cond is non-zero.
+static inline
+void cmov(Machine* self) {
+  size_t cond = readVarint(&self->ip);
+  size_t dst = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  if (self->top->r[cond].bits != 0) {
+    self->top->r[dst].bits = self->top->r[src].bits;
+  }
+}
+
+// 0x61 CMOV r<cond>, r<dst>, imm<src>
+// Move src to dst when cond is non-zero.
+static inline
+void cmovi(Machine* self) {
+  size_t cond = readVarint(&self->ip);
+  size_t dst = readVarint(&self->ip);
+  uintptr_t imm = readVarint(&self->ip);
+  if (self->top->r[cond].bits != 0) {
+    self->top->r[dst].bits = imm;
+  }
+}
+
+// 0x62 ZMOV r<cond>, r<dst>, r<src>
+// Move src to dst when cond is zero.
+static inline
+void zmov(Machine* self) {
+  size_t cond = readVarint(&self->ip);
+  size_t dst = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  if (self->top->r[cond].bits == 0) {
+    self->top->r[dst].bits = self->top->r[src].bits;
+  }
+}
+
+// 0x63 ZMOV r<cond>, r<dst>, imm<src>
+// Move src to dst when cond is zero.
+static inline
+void zmovi(Machine* self) {
+  size_t cond = readVarint(&self->ip);
+  size_t dst = readVarint(&self->ip);
+  uintptr_t imm = readVarint(&self->ip);
+  if (self->top->r[cond].bits == 0) {
+    self->top->r[dst].bits = imm;
+  }
+}
+
+
+/************************************
  Jumps
  ************************************/
 
@@ -639,6 +724,15 @@ static inline
 void computedJump(Machine* self) {
   size_t src = readVarint(&self->ip);
   self->ip = self->top->r[src].bptr;
+}
+
+// 0x71 JMP imm<off>
+// unconditional jump
+static inline
+void jump(Machine* self) {
+  byte* here = self->ip - 1;
+  ptrdiff_t offset = readI32(&self->ip);
+  self->ip = here + offset;
 }
 
 // 0x72 CJMP r<cond>, i32<offset>
@@ -671,6 +765,29 @@ void zjump(Machine* self) {
  Subroutines
  ************************************/
 
+// 0x80 JAL r<tgt>, imm<n>, n * r<src>
+// Jump and link to address stored in tgt register.
+//
+// As 0x81, but with a register source rather than an immediate offset.
+static inline
+void jalr(Machine* self) {
+  // accumulate information about callee
+  size_t reg = readI32(&self->ip);
+  byte* tgt = self->top->r[reg].bptr;
+  size_t calleeSize_words = readU32(&tgt);
+  // setup callee stack frame
+  StackFrame* callee = malloc(sizeof(StackFrame) + sizeof(word) * calleeSize_words);
+  callee->prev = self->top;
+  size_t argument_count = readVarint(&self->ip);
+  for(size_t i = 1; i <= argument_count; ++i) {
+    size_t src = readVarint(&self->ip);
+    callee->r[i] = self->top->r[src];
+  }
+  callee->r[0] = (word)self->ip;
+  // push callee frame and jump
+  self->top = callee;
+  self->ip = tgt;
+}
 
 // 0x81 JAL i32<offset>, imm<n>, n * r<src>
 // Jump and link to `ip + offset`.
@@ -699,6 +816,28 @@ void jal(Machine* self) {
   }
   callee->r[0] = (word)self->ip;
   // push callee frame and jump
+  self->top = callee;
+  self->ip = tgt;
+}
+
+// 0x82 JAR r<tgt>, imm<n>, n * r<src>
+// Jump and re-link to address stored in tgt register.
+//
+// As 0x83, but with a register source rather than an immediate offset.
+static inline
+void jarr(Machine* self) {
+  size_t reg = readI32(&self->ip);
+  byte* tgt = self->top->r[reg].bptr;
+  size_t calleeSize_words = readU32(&tgt);
+  StackFrame* callee = malloc(sizeof(StackFrame) + sizeof(word) * calleeSize_words);
+  callee->prev = self->top->prev; // <-- this is different from jal
+  size_t argument_count = readVarint(&self->ip);
+  for(size_t i = 1; i <= argument_count; ++i) {
+    size_t src = readVarint(&self->ip);
+    callee->r[i] = self->top->r[src];
+  }
+  callee->r[0] = self->top->r[0]; // <-- this is different from jal
+  free(self->top); // <-- this is an extra step relative to jal
   self->top = callee;
   self->ip = tgt;
 }
@@ -805,34 +944,195 @@ void strm(Machine* self) {
 // Both strings are NUL-terminated.
 // If the environment does not define the given variable, the dst is set to zero.
 
+
 // 0xC2 ARGC r<dst>
-// Store the process' number of arguments into the dst register.
-// The process name is counted as the first argument. TODO is it?
-
-// 0xC3 ARGV r<dst>, r<src>
-// Get the argument indexed by the contents of src.
-// Save a pointer to the result in dst.
-// The result string is NUL-terminated.
-// The value of the dst register is undefined if the src index is gte argc.
-
-// 0xD3 FWR r<dst>, r<fp>, r<src>
-// Write bytes from src to a file handle stored in fp.
-// The src register should contain a pointer to a word specifying how many bytes
-// to write, immediately followed by that many bytes.
-// The number of bytes actually written is then stored in dst.
+// Load number of arguments (including bytecode filepath) into dst.
 static inline
-void writeFile(Machine* self) {
+void getArgc(Machine* self) {
   size_t dst = readVarint(&self->ip);
-  size_t fpReg = readVarint(&self->ip);
+  self->top->r[dst].bits = self->environ.argc;
+}
+
+// 0xC3 ARGV r<dst>, r<ix>
+// Create a handle to a copy of the ix-th argument.
+// The handle is two words: a length and a pointer to a NUL-terminated string of that length.
+// The pointer is freshly-allocated, so should be freed when finished with it.
+// The handle is written to the contents of the pointer stored in dst.
+static inline
+void getArgv(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t ix = readVarint(&self->ip);
+  char* nulstrp = self->environ.argv[self->top->r[ix].bits];
+  size_t len = strlen(nulstrp);
+  byte* new = malloc(len + 1);
+  memcpy(new, nulstrp, len+1);
+  word* tgt = self->top->r[dst].wptr;
+  tgt[0].bits = len;
+  tgt[1].bptr = new;
+}
+
+// 0xD0 OPEN imm<mode>, r<dst>, r<src>
+// Opens the file names in src and places the file pointer in dst.
+// The src register should have a pointer to a NUL-terminated string.
+// The mode argument should be:
+//    0 for read,
+//    1 for write (create file if it doesn't exist),
+//    2 for read/write (create file if it doesn't exist).
+// If there is an error, zero is stored in dst.
+static inline
+void openFile(Machine* self) {
+  size_t mode = readVarint(&self->ip);
+  size_t dst = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  switch (mode) {
+    case 0: {
+      self->top->r[dst].fptr = fopen((char*)self->top->r[src].bptr, "r");
+    } break;
+    case 1: {
+      self->top->r[dst].fptr = fopen((char*)self->top->r[src].bptr, "w");
+    } break;
+    case 2: {
+      FILE* file = fopen((char*)self->top->r[src].bptr, "a+");
+      fseek(file, 0, SEEK_SET);
+      self->top->r[dst].fptr = file;
+    } break;
+    default: {
+      self->top->r[dst].fptr = NULL;
+    }; break;
+  }
+}
+
+// 0xD1 CLOS r<fp>
+// Close a file.
+// This may or may not successfully flush any buffered output.
+static inline
+void closeFile(Machine* self) {
+  size_t fp = readVarint(&self->ip);
+  fclose(self->top->r[fp].fptr);
+}
+
+// 0xD2 GET r<dst>, r<fp>, r<src>
+// Read bytes from the file handle in fp to a buffer pointed to by dst.
+// The src register contains the maximum number of bytes that should be read.
+// At the end of the operation, store the number of bytes actually read in src.
+// If there was an error, store `-read_bytes - 1` in src.
+static inline
+void getBytes(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t fp = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  FILE* file = self->top->r[fp].fptr;
+  size_t req_read = self->top->r[src].bits;
+  size_t real_read = fread(self->top->r[dst].bptr, 1, req_read, file);
+  if (req_read == real_read) {
+    self->top->r[src].sbits = real_read;
+  }
+  else if (feof(file)) {
+    self->top->r[src].sbits = real_read;
+    clearerr(file);
+  }
+  else {
+    self->top->r[src].sbits = -real_read - 1;
+  }
+}
+
+// 0xD3 PUT r<fp>, r<src>
+// Write bytes from src to a file handle stored in fp.
+// The src register should contain a pointer to a packed struct with:
+//   a word specifying how many bytes to write, and
+//   a pointer to the bytes to be written.
+// The number of bytes actually written is then stored in src.
+static inline
+void putBytes(Machine* self) {
+  size_t fp = readVarint(&self->ip);
   size_t src = readVarint(&self->ip);
   word* str = self->top->r[src].wptr;
-  size_t written = fwrite(str + 1, 1, str->bits, self->top->r[fpReg].fptr);
-  self->top->r[dst].bits = written;
+  size_t written = fwrite(str[1].bptr, 1, str[0].bits, self->top->r[fp].fptr);
+  self->top->r[src].sbits = written;
   }
 
-// used internally for testing while I develop
+// 0xD4 GETB r<dst>, r<fp>
+// Read a byte from the file pointer and store it in dst.
+// If at the end of the file, store 256 in dst.
+// If an error occured, store a value less than 0 in dst.
 static inline
-void test(Machine* self) {
+void getByte(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t fp = readVarint(&self->ip);
+  FILE* file = self->top->r[fp].fptr;
+  int res = getc(file);
+  if (res == EOF) {
+    if (feof(file)) {
+      self->top->r[dst].sbits = 256;
+      clearerr(file);
+    }
+    else {
+      self->top->r[dst].sbits = -2;
+      clearerr(file);
+    }
+  }
+  else {
+    self->top->r[dst].sbits = res;
+  }
+}
+
+// 0xD5 PUTB r<fp>, r<src>
+// Write the low byte from the src register to the file pointer.
+// On error, store a value less than zero in src.
+static inline
+void putByte(Machine* self) {
+  size_t fp = readVarint(&self->ip);
   size_t src = readVarint(&self->ip);
-  fprintf(stdout, "result is %lx\n", self->top->r[src].bits);
+  int res = putc(self->top->r[src].byte.low, self->top->r[fp].fptr);
+  if (res == EOF) {
+    self->top->r[src].sbits = -2;
+  }
+}
+
+// 0xD7 FLUS r<fp>, r<err>
+// Flush any buffered output for the file.
+// Store 1 in err if there is an error, otherwise store 0 there.
+static inline
+void flushFile(Machine* self) {
+  size_t fp = readVarint(&self->ip);
+  size_t err = readVarint(&self->ip);
+  if (fflush(self->top->r[fp].fptr) != EOF) {
+    self->top->r[err].bits = 0;
+  }
+  else {
+    self->top->r[err].bits = 1;
+  }
+}
+
+// 0xD8 TELL r<fp>, r<dst>
+// Store location within file into dst., or -1 on error.
+static inline
+void tellFile(Machine* self) {
+  size_t fp = readVarint(&self->ip);
+  size_t dst = readVarint(&self->ip);
+  self->top->r[dst].sbits = ftell(self->top->r[fp].fptr);
+}
+
+// 0xD9 SEEK imm<whence>, r<fp>, r<src>
+// Adjust position in file by a signed offset.
+// The new position depends on the value of whence:
+//    0 — the value in src,
+//    1 — current position plus src, or
+//    2 — end of file plus src.
+// If there is an error, store 1 in src, else 0.
+static inline
+void seekFile(Machine* self) {
+  int whence = readVarint(&self->ip);
+  size_t fp = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  switch (whence) {
+    case 0: whence = SEEK_SET; break;
+    case 1: whence = SEEK_CUR; break;
+    case 2: whence = SEEK_END; break;
+    default: {
+      self->top->r[src].bits = 1;
+    } return;
+  }
+  int res = fseek(self->top->r[fp].fptr, self->top->r[src].sbits, whence);
+  self->top->r[src].bits = (res == 0) ? 0 : 1;
 }

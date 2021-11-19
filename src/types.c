@@ -1,7 +1,7 @@
 #include "types.h"
 
 
-int initMachine(Machine* out, Program* prog) {
+int initMachine(Machine* out, Program* prog, size_t argc, char** argv) {
   // setup code and instruction pointer
   out->program = prog;
   out->ip = prog->code + prog->entrypoint;
@@ -10,6 +10,9 @@ int initMachine(Machine* out, Program* prog) {
   out->top = malloc(sizeof(StackFrame) + sizeof(word) * startFrameRegisters_count);
   out->top->prev = NULL;
   if (out->top == NULL) { return 1; }
+  // setup environment
+  out->environ.argc = argc;
+  out->environ.argv = argv;
   // setup retarray
   out->retarray.cap = 8;
   out->retarray.bufp = malloc(sizeof(word) * out->retarray.cap);

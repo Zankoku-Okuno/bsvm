@@ -1,18 +1,47 @@
-.wordsize 8
-.endian little
+.shebang /usr/bin/env bsvm
 
 .func main
-  ; write msg to stdout
-  lia %1, &msg
+  ;;; setup
   strm %0, 1
-  fwr %2, %0, %1
-  ; exit(written)
-  exit %2
+  ;;; put the first part of the string
+    ; load string and compute bounds
+    lia %3, &hello.start
+    lia %2, &hello.end
+    sub %2, %3
+    ; write msg to stdout
+    lea %1, %2
+    put %0, %1
+  ;;; determine the name to use (default "world")
+    ; load default string and compute bounds
+    lia %3, &world.start
+    lia %2, &world.end
+    sub %2, %3
+    ; if there is an argument, load it instead
+    argc %1
+    lt %1, %1, 2
+    cjmp %1, @name-loaded
+    mov %1, 1
+    lea %2, %2
+    argv %2, %1
+@name-loaded:
+  ;;; put the name
+    lea %1, %2
+    put %0, %1
+  ;;; put the final part of the string
+    mov %1, 33 ; exclam
+    putb %0, %1
+    mov %1, 10 ; newline
+    putb %0, %1
+  mov %0, 0
+  exit %0
 
-.word &msg.start, &msg.end
-msg:
-.word &msg.end - &msg.start
-msg.start:
-.ascii 'Hello',10
-msg.end:
+
+hello.start:
+.ascii 'Hello, '
+hello.end:
+.ascii 0
+
+world.start:
+.ascii 'world'
+world.end:
 .ascii 0

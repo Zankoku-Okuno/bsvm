@@ -5,7 +5,7 @@
 #include "execute.h"
 
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
   if (argc < 1) {
     fprintf(stderr, "usage: bsvm <bytecode file> <args to program...>\n");
     return 1;
@@ -18,7 +18,7 @@ int main(int argc, char* argv[]) {
     return -1;
   }
   // fprintf(stderr, "initializing...\n");
-  initMachine(&machine, &prog);
+  initMachine(&machine, &prog, argc-1, argv+1);
   // fprintf(stderr, "executing...\n");
   // TODO I'm debating whether to use longjmp instead of testing a boolean every time
   while(!machine.shouldHalt) {

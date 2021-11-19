@@ -24,11 +24,15 @@ struct Machine {
     size_t cap;
     word* bufp;
   } retarray;
+  struct environ {
+    size_t argc;
+    char** argv; // a read-only borrow
+  } environ;
   bool shouldHalt;
   int exitcode;
   Program* program; // a read-only borrow
 };
-int initMachine(Machine* out, Program* prog);
+int initMachine(Machine* out, Program* prog, size_t argc, char** argv);
 void destroyMachine(Machine* machine);
 
 struct StackFrame {

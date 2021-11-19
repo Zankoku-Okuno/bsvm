@@ -28,6 +28,8 @@ def main():
     print("{} line {}: {}".format(asm.file, asm.lineno, exn), file=sys.stderr)
     exit(1)
   with open(path.splitext(fname)[0] + ".bsvm", "wb") as fp:
+    if asm.shebang is not None:
+      fp.write(b"#!" + asm.shebang.encode('ascii') + b"\n")
     fp.write(b"BsvmExe1")
     fp.write(len(asm.code).to_bytes(4, 'big'))
     fp.write((asm.entrypoint or 0).to_bytes(4, 'big'))
@@ -39,6 +41,7 @@ class AsmExn(Exception):
 
 class Asm:
   def __init__(self):
+    self.shebang = None
     self.wordSize = None
     self.endianness = None
     self.lbltab = dict()
@@ -102,6 +105,7 @@ class Asm:
     f(args)
 
   def asmInstruction(self, line):
+    line = re.sub(r"\s*;.*$", "", line)
     opcode = line.split(' ')[0]
     args = [ arg.strip() for arg in line[len(opcode):].split(',') if arg.strip() ]
     # print("{}: {}".format(opcode, repr(args))) # TODO
@@ -143,6 +147,10 @@ class Asm:
       self.code[self.functionAddr:self.functionAddr+4] \
         = self.functionSize.to_bytes(4, 'big')
 
+  def DIR_shebang(self, args):
+    if self.shebang is not None:
+      raise AsmExn("shebang is already specified")
+    self.shebang = args
   def DIR_wordsize(self, args):
     if self.wordSize is not None:
       raise AsmExn("word size is already defined")
@@ -243,7 +251,7 @@ class Asm:
   def OP_st(self, a, b): self.op_reg_reg(a, b, 0x05)
   # 0x06–0x09
   def OP_lea(self, a, b): self.op_reg_reg(a, b, 0x0A)
-  def OP_lia(self, a, b): self.reg_off(a, b, opcode=0x0B)
+  def OP_lia(self, a, b): self.op_reg_off(a, b, opcode=0x0B)
   def OP_ldb(self, a, b): self.op_reg_reg(a, b, 0x0C)
   # 0x0D
   def OP_stb(self, a, b): self.op_reg_reg(a, b, 0x0E)
@@ -270,15 +278,19 @@ class Asm:
   def OP_and(self, a, b): self.op_reg_regimm(a, b, whenReg=0x34, whenImm=0x35)
   # 0x36
   def OP_inv(self, a, b): self.op_reg_reg(a, b, 0x37)
-  def OP_szr(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x38, whemImm=0x39)
-  def OP_sar(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x3A, whemImm=0x3B)
-  def OP_shl(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x3C, whemImm=0x3D)
-  def OP_rot(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x3E, whemImm=0x3F)
+  def OP_szr(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x38, whenImm=0x39)
+  def OP_sar(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x3A, whenImm=0x3B)
+  def OP_shl(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x3C, whenImm=0x3D)
+  def OP_rot(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x3E, whenImm=0x3F)
   ###### Memory Buffers ######
   def OP_new(self, a, b): self.op_reg_reg(a, b, 0x40)
   def OP_free(self, a):
     _, src = self.arg(a, 'r')
     self.append(b"\x41" + mkVarint(src))
+  def OP_rnew(self, a, b): self.op_reg_reg(a, b, 0x42)
+  # 0x43
+  def OP_mmov(self, a, b, c): self.op_reg_reg_reg(a, b, c, 0x44)
+
   # 0x42–4F
   ###### Comparisons ######
   def OP_bit(self, a, b, c):
@@ -288,41 +300,68 @@ class Asm:
     if bit > 255:
       raise AsmExn("bit index out of bounds: {}".format(bit))
     self.append(b"\x50" + bit.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src))
-  # 0x51
+  def OP_not(self, a, b): self.op_reg_reg(a, b, 0x51)
   def OP_any(self, a, *bs): self.op_reg_regs(a, *bs, opcode=0x52)
   def OP_all(self, a, *bs): self.op_reg_regs(a, *bs, opcode=0x53)
-  def OP_eq(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x54, whenImm = 0x55)
-  def OP_neq(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x56, whenImm = 0x57)
-  def OP_bl(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x58, whenImm = 0x59)
-  def OP_ble(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x5A, whenImm = 0x5B)
-  def OP_lt(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x5C, whenImm = 0x5D)
-  def OP_lte(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x5E, whenImm = 0x5F)
+  def OP_eq(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x54, whenImm=0x55)
+  def OP_neq(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x56, whenImm=0x57)
+  def OP_bl(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x58, whenImm=0x59)
+  def OP_ble(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x5A, whenImm=0x5B)
+  def OP_lt(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x5C, whenImm=0x5D)
+  def OP_lte(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x5E, whenImm=0x5F)
   ###### Conditioned Operations ######
-  # 0x60–0x6F
+  def OP_cmov(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x60, whenImm=0x61)
+  def OP_zmov(self, a, b, c): self.op_reg_reg_regimm(a, b, c, whenReg=0x62, whenImm=0x63)
+  # 0x65–0x6F
   ###### Jumps ######
   def OP_jmpr(self, a):
     _, src = self.arg(a, 'r')
     self.append(b"\x70" + mkVarint(src))
-  # 0x71
-  def OP_cjmp(self, a, b): self.reg_off(a, b, opcode=0x72)
-  def OP_zjmp(self, a, b): self.reg_off(a, b, opcode=0x73)
+  def OP_jmp(self, a):
+    try:
+      _, imm = self.arg(a, 'i')
+      fref = None
+    except ForwardReference as exn:
+      fref, expr = exn.args
+    if fref is None:
+      imm -= self.offset
+      self.append(b"\x71" + imm.to_bytes(4, 'big', signed=True))
+    else:
+      instrAddr = self.offset
+      self.append(b"\x71")
+      self.suspend(fref, lambda asm: expr(asm) - instrAddr)
+  def OP_cjmp(self, a, b): self.op_reg_off(a, b, opcode=0x72)
+  def OP_zjmp(self, a, b): self.op_reg_off(a, b, opcode=0x73)
   # 0x74–7F
   ###### Subroutines ######
-  # 0x80
-  def OP_jal(self, a, *bs): self.op_off_regs(a, *bs, opcode=0x81)
-  # 0x82
-  def OP_jar(self, a, *bs): self.op_off_regs(a, *bs, opcode=0x83)
+  def OP_jal(self, a, *bs): self.op_regoff_regs(a, *bs, whenReg=0x80, whenOff=0x81)
+  def OP_jar(self, a, *bs): self.op_regoff_regs(a, *bs, whenReg=0x82, whenOff=0x83)
   def OP_ret(self, *args): self.op_regs(*args, opcode=0x84)
   def OP_into(self, *args): self.op_regs(*args, opcode=0x85)
   def OP_exit(self, a):
     _, src = self.arg(a, 'r')
     self.append(b"\x86" + mkVarint(src))
   ###### String Operations ######
-  ###### Input/Output ######
+  ###### Environment Access ######
   def OP_strm(self, a, b): self.op_reg_imm(a, b, opcode=0xC0)
-  def OP_fwr(self, a, b, c): self.op_reg_reg_reg(a, b, c, 0xD3)
+  def OP_argc(self, a): self.op_reg(a, opcode=0xC2)
+  def OP_argv(self, a, b): self.op_reg_reg(a, b, opcode=0xC3)
+  ###### Input/Output ######
+  def OP_open(self, a, b, c): self.op_imm_reg_reg(a, b, c, 0xD0)
+  def OP_clos(self, a): self.op_reg(a, 0xD1)
+  def OP_put(self, a, b): self.op_reg_reg(a, b, 0xD3)
+  def OP_getb(self, a, b): self.op_reg_reg(a, b, 0xD4)
+  def OP_putb(self, a, b): self.op_reg_reg(a, b, 0xD5)
+  # 0xD6
+  def OP_flus(self, a, b): self.op_reg_reg(a, b, 0xD7)
+  def OP_tell(self, a, b): self.op_reg_reg(a, b, 0xD8)
+  def OP_seek(self, a, b, c): self.op_imm_reg_reg(a, b, c, 0xD9)
+  # 0xD9–0xDF
   ###### Done wth Opcodes ######
 
+  def op_reg(self, a, opcode):
+    _, dst = self.arg(a, 'r')
+    self.append(opcode.to_bytes(1, 'big') + mkVarint(dst))
   def op_reg_reg(self, a, b, opcode):
     _, dst = self.arg(a, 'r')
     _, src = self.arg(b, 'r')
@@ -343,14 +382,19 @@ class Asm:
     _, r2 = self.arg(b, 'r')
     _, r3 = self.arg(c, 'r')
     self.append(opcode.to_bytes(1, 'big') + mkVarint(r1) + mkVarint(r2) + mkVarint(r3))
-  def op_reg_reg_regimm(self, a, b, c, *, whenReg, whemImm):
+  def op_imm_reg_reg(self, a, b, c, opcode):
+    _, r1 = self.arg(a, 'i')
+    _, r2 = self.arg(b, 'r')
+    _, r3 = self.arg(c, 'r')
+    self.append(opcode.to_bytes(1, 'big') + mkVarint(r1) + mkVarint(r2) + mkVarint(r3))
+  def op_reg_reg_regimm(self, a, b, c, *, whenReg, whenImm):
     _, dst = self.arg(a, 'r')
     _, src = self.arg(b, 'r')
     aType, amt = self.arg(c, 'ri')
     if aType == 'r':
       self.append(whenReg.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src) + mkVarint(amt))
     elif aType == 'i':
-      self.append(whemImm.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src) + mkVarint(amt))
+      self.append(whenImm.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src) + mkVarint(amt))
   def op_regs(self, *args, opcode):
     n = len(args)
     srcs = [self.arg(a ,'r')[1] for a in args]
@@ -366,7 +410,7 @@ class Asm:
     for src in srcs:
       instr += mkVarint(src)
     self.append(instr)
-  def reg_off(self, a, b, opcode):
+  def op_reg_off(self, a, b, opcode):
     _, dst = self.arg(a, 'r')
     try:
       _, imm = self.arg(b, 'i')
@@ -380,20 +424,24 @@ class Asm:
       instrAddr = self.offset
       self.append(opcode.to_bytes(1, 'big') + mkVarint(dst))
       self.suspend(fref, lambda asm: expr(asm) - instrAddr)
-  def op_off_regs(self, a, *bs, opcode):
+  def op_regoff_regs(self, a, *bs, whenReg, whenOff):
     try:
-      _, imm = self.arg(a, 'i')
+      ty, val = self.arg(a, 'ri')
       fref = None
     except ForwardReference as exn:
+      ty = 'i'
       fref, expr = exn.args
     n = len(bs)
     srcs = [self.arg(b, 'r')[1] for b in bs]
-    instrAddr = self.offset
-    self.append(opcode.to_bytes(1, 'big'))
-    if fref is None:
-      self.append((imm - instrAddr).to_bytes(4, 'big', signed=True))
+    if ty == 'r':
+      self.append(whenReg.to_bytes(1, 'big') + mkVarint(val))
     else:
-      self.suspend(fref, lambda asm: expr(asm) - instrAddr)
+      instrAddr = self.offset
+      self.append(whenOff.to_bytes(1, 'big'))
+      if fref is None:
+        self.append((val - instrAddr).to_bytes(4, 'big', signed=True))
+      else:
+        self.suspend(fref, lambda asm: expr(asm) - instrAddr)
     self.append(mkVarint(n))
     for src in srcs:
       self.append(mkVarint(src))

@@ -29,7 +29,7 @@ void cycle(Machine* self) {
     case 0x12: sub(self); break;
     case 0x13: subImm(self); break;
     case 0x14: adc(self); break;
-    // 0x15
+    // case 0x15: ???(self); break;
     case 0x16: sbb(self); break;
     case 0x17: neg(self); break;
     case 0x18: mul(self); break;
@@ -62,19 +62,21 @@ void cycle(Machine* self) {
     // 0x40 - 0x4F: memory operations
     case 0x40: vmAlloc(self); break;
     case 0x41: vmFree(self); break;
-    // mcpy r<dst>, r<src>, r<len>
-    // mset r<dst>, r<len>, r<src>, r<srcLen> // ??? cycle through srcLen chars of src, filling dst up to len chars
-    // mcmp r<dst>, r<src1>, r<src2>, r<len>
-    // mcat r<dst>, imm<n>, r<lengths -> word[n]>, r<strs -> byte*[n]>
-    // mbrk r<dst>, r<src>, r<len>, r<chrs>, r<numChrs> // like C strpbrk
-    // mspn r<dst>, r<src>, r<len>, r<chrs>, r<numChrs> // like C strcspn
-    // mstr // find an infix like C strstr
+    case 0x42: vmRealloc(self); break;
+    // case 0x43: ???(self); break;
+    case 0x44: memMove(self); break;
+    // TODO mset r<dst>, r<len>, r<src>, r<srcLen> // ??? cycle through srcLen chars of src, filling dst up to len chars
+    // TODO mcmp r<dst>, r<src1>, r<src2>, r<len>
+    // TODO mcat r<dst>, imm<n>, r<lengths -> word[n]>, r<strs -> byte*[n]>
+    // TODO mbrk r<dst>, r<src>, r<len>, r<chrs>, r<numChrs> // like C strpbrk
+    // TODO mspn r<dst>, r<src>, r<len>, r<chrs>, r<numChrs> // like C strcspn
+    // TODO mstr // find an infix like C strstr
     // // split, join, and strip are likely useful string functions
     // // perhaps mcat --> mimp (implode), and add mexp (explode)
 
     // 0x50-0x5F tests
     case 0x50: bitTest(self); break;
-    // case 0x50: ???(self); break; boolean not?
+    case 0x51: not(self); break;
     case 0x52: any(self); break;
     case 0x53: all(self); break;
     case 0x54: setEq(self); break;
@@ -91,18 +93,24 @@ void cycle(Machine* self) {
     case 0x5F: setLteImm(self); break;
 
     // 0x60 - 0x6F: conditioned operations
-    // TODO cmov, cld, cst
-    // TODO zmov, zld, zst
-
+    case 0x60: cmov(self); break;
+    case 0x61: cmovi(self); break;
+    case 0x62: zmov(self); break;
+    case 0x63: zmovi(self); break;
+    // TODO cld
+    // TODO zld
+    // TODO cst
+    // TODO zst
     // 0x70 - 0x7F: jumps
     case 0x70: computedJump(self); break;
+    case 0x71: jump(self); break;
     case 0x72: cjump(self); break;
     case 0x73: zjump(self); break;
 
 
-    // case 0x80: jalr(self); break;
+    case 0x80: jalr(self); break;
     case 0x81: jal(self); break;
-    // case 0x82: jarr(self); break; // jump and re-link (register)
+    case 0x82: jarr(self); break;
     case 0x83: jar(self); break;
     case 0x84: ret(self); break;
     case 0x85: into(self); break;
@@ -113,14 +121,22 @@ void cycle(Machine* self) {
     // ... 0xC0-0xFF i/o
     // 0xC0 - 0xCF environment access
     case 0xC0: strm(self); break;
+    // TODO case 0xC1: getEnv(self); break;
+    case 0xC2: getArgc(self); break;
+    case 0xC3: getArgv(self); break;
 
     // 0xD0 - 0xDF file manipulation
-    // 0xD0 fopen
-    // 0xD1 fclose
-    // 0xD2 fread
-    case 0xD3: writeFile(self); break;
+    case 0xD0: openFile(self); break;
+    case 0xD1: closeFile(self); break;
+    case 0xD2: getBytes(self); break;
+    case 0xD3: putBytes(self); break;
+    case 0xD4: getByte(self); break;
+    case 0xD5: putByte(self); break;
+    // 0xD6 ???
+    case 0xD7: flushFile(self); break;
+    case 0xD8: tellFile(self); break;
+    case 0xD9: seekFile(self); break;
 
-    case 0xFF: test(self); break;
     default: {
       fprintf(stderr, "unexpected opcode %x\n", *(self->ip - 1));
       exit(-1);

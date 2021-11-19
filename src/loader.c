@@ -7,12 +7,29 @@
 int readProgram(Program* out, const char* filename) {
   FILE* fp = fopen(filename, "r");
   if (fp == NULL) { goto badexit; }
-  // first 8 bytes are a magic number
+  // If the first two bytes are #!, skip through the first newline character, then continue.
+  // Otherwise, look for the 8-byte magic number.
   {
-    char magic[8];
-    size_t read_bytes = fread(magic, 1, 8, fp);
-    if (read_bytes != 8) { goto badexit; }
-    if (strncmp((const char*)&magic, "BsvmExe1", 8) != 0) { goto badexit; }
+    int look = getc(fp);
+    if (look == '#') {
+      if ((look = getc(fp)) != '!') { goto badexit; }
+      do {
+        look = getc(fp);
+        if (look == EOF) { goto badexit; }
+      } while (look != '\n');
+      // 8-byte magic number
+      char magic[8];
+      size_t read_bytes = fread(magic, 1, 8, fp);
+      if (read_bytes != 8) { goto badexit; }
+      if (strncmp((const char*)&magic, "BsvmExe1", 8) != 0) { goto badexit; }
+    }
+    else if (look == 'B') {
+      char magic[7];
+      size_t read_bytes = fread(magic, 1, 7, fp);
+      if (read_bytes != 7) { goto badexit; }
+      if (strncmp((const char*)&magic, "svmExe1", 7) != 0) { goto badexit; }
+    }
+    else { goto badexit; }
   }
   // next 4 bytes hold a the size of the code section in bytes, big-endian
   {
