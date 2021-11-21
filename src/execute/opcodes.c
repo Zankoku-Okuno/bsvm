@@ -25,6 +25,14 @@ void halt(Machine* self) {
   self->exitcode = -1;
 }
 
+// 0x01 SCAL r<dst>
+// Scale dst by size of word
+static inline
+void scaleSize(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  self->top->r[dst].bits *= sizeof(word);
+}
+
 // 0x02 MOV r<dst>, r<src>
 static inline
 void move(Machine* self) {
@@ -50,6 +58,16 @@ void load(Machine* self) {
   self->top->r[dst] = *self->top->r[src].wptr;
 }
 
+// 0x05 LD r<dst>, r<src>, imm<off>
+// Load a word from the address in src + off*sizeof(word) and place it in dst.
+static inline
+void loadOff(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  size_t imm = readVarint(&self->ip);
+  self->top->r[dst] = self->top->r[src].wptr[imm];
+}
+
 // 0x06 ST r<dst>, r<src>
 // Store contents of the src register into memory pointed to by dst register.
 static inline
@@ -57,6 +75,40 @@ void store(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t src = readVarint(&self->ip);
   *self->top->r[dst].wptr = self->top->r[src];
+}
+
+// 0x07 ST r<dst>, imm<off>, r<src>
+// Store a word from src into the address at dst + off*sizeof(word).
+static inline
+void storeOff(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t imm = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  self->top->r[dst].wptr[imm] = self->top->r[src];
+}
+
+// 0x08 LDG r<dst>, imm<ix>
+// Load global value.
+static inline
+void ldGlobal(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t ix = readVarint(&self->ip);
+  if (ix >= self->global.len) {
+    self->global.at = realloc(self->global.at, sizeof(word*) * ix);
+  }
+  self->top->r[dst].bits = self->global.at[ix].bits;
+}
+
+// 0x09 STG imm<ix>, reg<src>
+// Store global value.
+static inline
+void stGlobal(Machine* self) {
+  size_t ix = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  if (ix >= self->global.len) {
+    self->global.at = realloc(self->global.at, sizeof(word*) * ix);
+  }
+  self->global.at[ix].bits = self->top->r[src].bits;
 }
 
 // 0x0A LEA r<dst>, r<src>
@@ -431,7 +483,7 @@ void rolImm(Machine* self) {
  ************************************/
 
 
-// 0x40 NEW r<dst> r<src>
+// 0x40 NEW r<dst>, r<src>
 // allocate src bytes and retain pointer to them in dst
 static inline
 void vmAlloc(Machine* self) {
@@ -462,6 +514,8 @@ void vmRealloc(Machine* self) {
   size_t src = readVarint(&self->ip);
   self->top->r[ptr].bptr = realloc(self->top->r[ptr].bptr, self->top->r[src].bits);
 }
+
+
 
 // 0x44 MMOV r<dst>, r<src>, r<len>
 // Copy len bytes from src to dst.

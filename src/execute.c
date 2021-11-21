@@ -6,16 +6,16 @@ void cycle(Machine* self) {
   switch (*self->ip++) {
     // 0x00: halt and catch fire in case ip goes out-of-bounds
     case 0x00: halt(self); break;
-    // case 0x01: ???(self); break;
-    // 0x02 - 0x0F: loads, stores, moves, and address calculation
+    // 0x01 - 0x0F: loads, stores, moves, and address calculation
+    case 0x01: scaleSize(self); break;
     case 0x02: move(self); break;
     case 0x03: moveImm(self); break;
     case 0x04: load(self); break;
-    // case 0x05 // load with immediate offset?
+    case 0x05: loadOff(self); break;
     case 0x06: store(self); break;
-    // case 0x07 // store with immediate offset?
-    // case 0x08: ???(self); break;
-    // case 0x09: ???(self); break;
+    case 0x07: storeOff(self); break;
+    case 0x08: ldGlobal(self); break;
+    case 0x09: stGlobal(self); break;
     case 0x0A: lea(self); break;
     case 0x0B: lia(self); break;
     case 0x0C: loadByte(self); break;
@@ -64,7 +64,7 @@ void cycle(Machine* self) {
     case 0x41: vmFree(self); break;
     case 0x42: vmRealloc(self); break;
     // case 0x43: ???(self); break;
-    case 0x44: memMove(self); break;
+    case 0x48: memMove(self); break;
     // TODO mset r<dst>, r<len>, r<src>, r<srcLen> // ??? cycle through srcLen chars of src, filling dst up to len chars
     // TODO mcmp r<dst>, r<src1>, r<src2>, r<len>
     // TODO mcat r<dst>, imm<n>, r<lengths -> word[n]>, r<strs -> byte*[n]>

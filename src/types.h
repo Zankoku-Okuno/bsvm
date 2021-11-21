@@ -20,6 +20,10 @@ typedef struct StackFrame StackFrame;
 struct Machine {
   byte* ip;
   StackFrame* top;
+  struct {
+    size_t len;
+    word* at;
+  } global;
   struct retarray {
     size_t cap;
     word* bufp;

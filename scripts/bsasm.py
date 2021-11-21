@@ -24,6 +24,8 @@ def main():
           name, _ = exn.args
           raise AsmExn("undefined label: {}".format(name))
         asm.code[off:off+size] = val.to_bytes(size, endianness, signed=True)
+        if callable(asm.entrypoint):
+          asm.entrypoint = asm.entrypoint(asm)
   except AsmExn as exn:
     print("{} line {}: {}".format(asm.file, asm.lineno, exn), file=sys.stderr)
     exit(1)
@@ -41,12 +43,10 @@ class AsmExn(Exception):
 
 class Asm:
   def __init__(self):
-    self.shebang = None
-    self.wordSize = None
-    self.endianness = None
     self.lbltab = dict()
     self.consttab = dict()
     self.regtab = None
+    self.numGlobals = 0
     # info about current location
     self.offset = 0
     self.file = None
@@ -56,6 +56,7 @@ class Asm:
     self.functionSize = None
     self.prevLbl = None
     # output
+    self.shebang = None
     self.entrypoint = None
     self.code = bytearray(b"")
     self.rewrites = dict() # Map[WaitOnLabelName, Map[Offset, Expr]]
@@ -65,17 +66,16 @@ class Asm:
     line = line.rstrip()
     if not line or re.match(r'\s*;', line):
       return
-    elif line[0] == ' ':
-      self.asmInstruction(line.lstrip())
-    elif line[0] == '.':
-      self.asmDirective(line[1:])
-    else:
+    elif re.match(r"\s*\.", line):
+      self.asmDirective(line.lstrip()[1:])
+    elif re.match(r"\s*@?[a-zA-Z0-9._-]+:", line):
       self.asmLabel(line)
+    else:
+      self.asmInstruction(line.lstrip())
 
-  LABEL_RE = r"(@?)([a-zA-Z0-9._-]+):"
   def asmLabel(self, line):
     # make sure it's well-formed
-    m = re.fullmatch(Asm.LABEL_RE, line)
+    m = re.fullmatch(r"\s*(@?)([a-zA-Z0-9._-]+):", line)
     if not m:
       raise AsmExn("invalid syntax")
     # extract the label name (expanding leading @-sign)
@@ -113,12 +113,15 @@ class Asm:
       f = getattr(self, "OP_" + opcode.lower())
     except AttributeError:
       raise AsmExn("unknown instruction {}".format(repr(opcode)))
-    f(*args)
+    try:
+      f(*args)
+    except TypeError:
+      raise AsmExn("incorrect number of arguments to {}: {}".format(opcode, len(args)))
   
   def append(self, code):
     self.code += code
     self.offset += len(code)
-  def suspend(self, waitOn, expr, size=4, endianness='big'):
+  def suspend(self, waitOn, expr, *, size=4, endianness='big'):
     if waitOn not in  self.rewrites:
       self.rewrites[waitOn] = dict()
     self.rewrites[waitOn][self.offset] = (size, endianness, expr)
@@ -141,7 +144,7 @@ class Asm:
       except ParseExn as exn:
         raise AsmExn("parse error: {}".format(*exn.args))
       return 'i', e(self)
-    raise AsmExn("bad argument (expecting {}): {}".format(allow, text))
+    raise AsmExn("bad argument (expecting {}): {}".format(allow, repr(text)))
   def finalize_function(self):
     if self.functionAddr is not None:
       self.code[self.functionAddr:self.functionAddr+4] \
@@ -151,30 +154,30 @@ class Asm:
     if self.shebang is not None:
       raise AsmExn("shebang is already specified")
     self.shebang = args
-  def DIR_wordsize(self, args):
-    if self.wordSize is not None:
-      raise AsmExn("word size is already defined")
-    if args == '8':
-      self.wordSize = 8
-    elif args == '4':
-      self.wordSize = 4
-    else:
-      raise AsmExn("unsupported word size: {}".format(args))
-    self.consttab["__wordSize__"] = self.wordSize
-  def DIR_endian(self, args):
-    if self.endianness is None:
-      self.endianness = args
-    else:
-      raise AsmExn("endianness is already defined")
+  def DIR_entrypoint(self, args):
+    if self.entrypoint is not None:
+      raise AsmExn("duplicate entrypoint definition")
+    try:
+      self.entrypoint = self.arg(args, 'i')
+    except ForwardReference as exn:
+      _, expr = exn.args
+      self.entrypoint = expr
+  def DIR_global(self, args):
+    for arg in [arg.strip(), args.split(',')]:
+      if not re.match(r"", arg):
+        raise AsmExn("bad global name: {}".format(arg))
+      self.consttab[arg] = self.numGlobals
+      self.numGlobals += 1
   def DIR_func(self, args):
     # finalize last function
     self.finalize_function()
     # extract arguments
-    args = args.strip().split(' ')
-    if len(args) == 0:
+    tmp = args.split(' ')
+    if len(tmp) == 0:
       raise AsmExn("missing function name")
     else:
-      name, params = args[0], args[1:]
+      name = tmp[0]
+      params = [param.strip() for param in args[len(name):].strip().split(',') if param.strip()]
     # define function name/label
     if re.match(r"^[a-zA-Z0-9._-]+$", name):
       self.functionName = name
@@ -192,6 +195,23 @@ class Asm:
         pass
       elif re.match(r"^[a-zA-Z0-9._-]+$", param):
         self.regtab[param] = i + 1
+      else:
+        raise AsmExn("bad parameter name: {}".format(repr(param)))
+  def DIR_reg(self, args):
+    for arg in (arg.strip() for arg in args.split(',') if arg.strip()):
+      m = re.match(r"([a-zA-Z0-9._-]+)(?:\s*=\s*([0-9]+))?", arg)
+      if m is None:
+        raise AsmExn("bad register definition: {}".format(repr(arg)))
+      regname, regindex = m.group(1), m.group(2)
+      if regindex is None:
+        regindex = self.functionSize
+      else:
+        regindex = int(regindex)
+      if regname in self.regtab:
+        raise AsmExn("duplicate register definition: {}".format(regname))
+      if regname != "_":
+        self.regtab[regname] = regindex
+      self.functionSize = max(self.functionSize, regindex + 1)
   def DIR_def(self, args):
     tmp = args.strip().split(" ")
     if len(tmp) < 2:
@@ -200,24 +220,6 @@ class Asm:
     body = args[len(name):].strip()
     _, value = self.arg(body, 'i')
     self.consttab[name] = value
-  def DIR_word(self, args):
-    args = [arg.strip() for arg in args.split(',')]
-    for arg in args:
-      try:
-        _, imm = self.arg(arg, 'i')
-        fref = None
-      except ParseExn as exn:
-        raise AsmExn("parse error: {}".format(*exn.args))
-      except ForwardReference as exn:
-        fref, expr = exn.args
-      if self.wordSize is None:
-        raise AsmExn("unknown word size")
-      if self.endianness is None:
-        raise AsmExn("unknown endianness")
-      if fref is None:
-        self.append(imm.to_bytes(self.wordSize, self.endianness, signed=True))
-      else:
-        self.suspend(fref, expr, size=self.wordSize, endianness=self.endianness)
   def DIR_ascii(self, args):
     text = ""
     while True:
@@ -244,12 +246,28 @@ class Asm:
 
   def OP_hcf(self):
     self.append(b"\x00")
-  # 0x01
   ###### Byte Pushing ######
+  def OP_scal(self, a): self.op_reg(a, 0x01)
   def OP_mov(self, a, b): self.op_reg_regimm(a, b, whenReg=0x02, whenImm=0x03)
-  def OP_ld(self, a, b): self.op_reg_reg(a, b, 0x04)
-  def OP_st(self, a, b): self.op_reg_reg(a, b, 0x05)
-  # 0x06–0x09
+  def OP_ld(self, a, b, c=None):
+    _, dst = self.arg(a, 'r')
+    _, src = self.arg(b, 'r')
+    if c is None:
+      self.append(0x04.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src))
+    else:
+      _, imm = self.arg(c, 'i')
+      self.append(0x05.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src) + mkVarint(imm))
+  def OP_st(self, a, b, c=None):
+    _, dst = self.arg(a, 'r')
+    if c is None:
+      _, src = self.arg(b, 'r')
+      self.append(0x06.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src))
+    else:
+      _, imm = self.arg(b, 'i')
+      _, src = self.arg(c, 'r')
+      self.append(0x07.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(imm) + mkVarint(src))
+  def OP_ldg(self, a, b): self.op_reg_imm(a, b, 0x08)
+  def OP_stg(self, a, b): self.op_imm_reg(a, b, 0x09)
   def OP_lea(self, a, b): self.op_reg_reg(a, b, 0x0A)
   def OP_lia(self, a, b): self.op_reg_off(a, b, opcode=0x0B)
   def OP_ldb(self, a, b): self.op_reg_reg(a, b, 0x0C)
@@ -288,8 +306,8 @@ class Asm:
     _, src = self.arg(a, 'r')
     self.append(b"\x41" + mkVarint(src))
   def OP_rnew(self, a, b): self.op_reg_reg(a, b, 0x42)
-  # 0x43
-  def OP_mmov(self, a, b, c): self.op_reg_reg_reg(a, b, c, 0x44)
+  # 0x43 - 0x47
+  def OP_mmov(self, a, b, c): self.op_reg_reg_reg(a, b, c, 0x48)
 
   # 0x42–4F
   ###### Comparisons ######
@@ -366,6 +384,14 @@ class Asm:
     _, dst = self.arg(a, 'r')
     _, src = self.arg(b, 'r')
     self.append(opcode.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src))
+  def op_reg_reg_noimm(self, a, b, c, *, whenNo, whenImm):
+    _, dst = self.arg(a, 'r')
+    _, src = self.arg(b, 'r')
+    if c is None:
+      self.append(whenNo.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src))
+    else:
+      _, imm = self.arg(c, 'i')
+      self.append(whenImm.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src) + mkVarint(imm))
   def op_reg_regimm(self, a, b, *, whenReg, whenImm):
     _, dst = self.arg(a, 'r')
     sType, src = self.arg(b, 'ri')
@@ -374,9 +400,13 @@ class Asm:
     elif sType == 'i':
       self.append(whenImm.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src))
   def op_reg_imm(self, a, b, opcode):
-    _, dst = self.arg(a, 'r')
-    _, src = self.arg(b, 'i')
-    self.append(opcode.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src))
+    _, reg = self.arg(a, 'r')
+    _, imm = self.arg(b, 'i')
+    self.append(opcode.to_bytes(1, 'big') + mkVarint(reg) + mkVarint(imm))
+  def op_imm_reg(self, a, b, opcode):
+    _, imm = self.arg(a, 'i')
+    _, reg = self.arg(b, 'r')
+    self.append(opcode.to_bytes(1, 'big') + mkVarint(imm) + mkVarint(reg))
   def op_reg_reg_reg(self, a, b, c, opcode):
     _, r1 = self.arg(a, 'r')
     _, r2 = self.arg(b, 'r')

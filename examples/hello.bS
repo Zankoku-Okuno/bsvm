@@ -1,39 +1,41 @@
-.shebang /usr/bin/env bsvm
+; .shebang /usr/bin/env bsvm
 
 .func main
   ;;; setup
+.reg fp = 0, _, strlen, strbytes
+.reg t1 = 1
   strm %0, 1
   ;;; put the first part of the string
     ; load string and compute bounds
-    lia %3, &hello.start
-    lia %2, &hello.end
-    sub %2, %3
+    lia strbytes, &hello.start
+    lia strlen, &hello.end
+    sub strlen, strbytes
     ; write msg to stdout
-    lea %1, %2
-    put %0, %1
+    lea t1, strlen
+    put fp, t1
   ;;; determine the name to use (default "world")
     ; load default string and compute bounds
-    lia %3, &world.start
-    lia %2, &world.end
-    sub %2, %3
+    lia strbytes, &world.start
+    lia strlen, &world.end
+    sub strlen, strbytes
     ; if there is an argument, load it instead
-    argc %1
-    lt %1, %1, 2
-    cjmp %1, @name-loaded
-    mov %1, 1
-    lea %2, %2
-    argv %2, %1
+    argc t1
+    lt t1, t1, 2
+    cjmp t1, @name-loaded
+    mov t1, 1
+    lea strlen, strlen
+    argv strlen, t1
 @name-loaded:
   ;;; put the name
-    lea %1, %2
-    put %0, %1
+    lea t1, strlen
+    put fp, t1
   ;;; put the final part of the string
-    mov %1, 33 ; exclam
-    putb %0, %1
-    mov %1, 10 ; newline
-    putb %0, %1
-  mov %0, 0
-  exit %0
+    mov t1, 33 ; exclam
+    putb fp, t1
+    mov t1, 10 ; newline
+    putb fp, t1
+  mov t1, 0
+  exit t1
 
 
 hello.start:

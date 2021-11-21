@@ -10,6 +10,9 @@ int initMachine(Machine* out, Program* prog, size_t argc, char** argv) {
   out->top = malloc(sizeof(StackFrame) + sizeof(word) * startFrameRegisters_count);
   out->top->prev = NULL;
   if (out->top == NULL) { return 1; }
+  // setup globals
+  out->global.len = 0;
+  out->global.at = NULL;
   // setup environment
   out->environ.argc = argc;
   out->environ.argv = argv;
