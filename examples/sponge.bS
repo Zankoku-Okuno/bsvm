@@ -2,9 +2,9 @@
 .func main
   .reg c, fp, char, buf
   .reg t1
-  ;;; buf = bytebuf.new(4)
+  ;;; buf = ByteBuf.new(4)
   mov t1, 4
-  jal &bytebuf.new, t1
+  jal &ByteBuf.new, t1
   into buf
   zjmp buf, @nomem
   ;;; fp = stdin
@@ -16,18 +16,17 @@
     ;;; while char != EOF
     eq c, char, 256
     cjmp c, @loop.end
-    ;;; bytebuf.append(buf, char)
+    ;;; ByteBuf.append(buf, char)
     lia t1, @nomem
-    jal &bytebuf.append, buf, char,  t1
+    jal &ByteBuf.append, buf, char,  t1
   ;;; }
     jmp @loop
   @loop.end:
   ;;; fp = stdout
   strm fp, 1
-  ;;; fwrite(fp, &buf.{len,buf})
-  mov t1, $bytebuf.len
-  scal t1
-  add t1, buf
+  ;;; fwrite(fp, &buf.lenstr)
+  mov t1, buf
+  off t1, $ByteBuf.lenstr
   put fp, t1
   ;;; exit(0)
   mov %0, 0

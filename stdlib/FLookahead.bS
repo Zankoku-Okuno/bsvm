@@ -1,0 +1,138 @@
+; Wrap a file pointer with a single-byte lookahead buffer.
+; This should make it easy to write LR(1)/LL(1) parsers without having to load
+; an entire file into memory at once.
+;
+; export struct FLookahead
+; export FLookahead.{new,del}
+; export FLookahead.{pop,peek}
+
+;;; struct FLookahead {
+  ;;; File fp
+  .def FLookahead.fp 0
+  ;;; bool hasPeek
+  .def FLookahead.hasPeek 1
+  ;;; int buf
+  .def FLookahead.buf 2
+;;; }
+.def FLookahead.size 3
+
+
+; Create a new file handle with single-byte lookahead.
+;
+; *file fp: file to wrap
+; return(?*FLookahead: pointer to new FLookahead)
+.func FLookahead.new fp, cap
+  .reg out, buf
+  .reg t1
+  ;;; out = malloc(sizeof(FLookahead))
+  mov t1, 0
+  off t1, $FLookahead.size
+  new out, t1
+  zjmp out, @no-out
+  ;;; out.{fp,hasPeek} = fp, False
+  st out, $FLookahead.fp, fp
+  mov t1, 0
+  st out, $FLookahead.hasPeek, t1
+  ;;; return out
+  ret out
+@no-out:
+  ;;; return out // which is always NULL here
+  ret out
+
+; Release all resources owned by this lookahead file pointer.
+; This returns the file handle instead of closing it.
+;
+; *FLookahead: self
+; return(*file)
+.func FLookahead.del self
+  .reg fp
+  ;;; fp = self->fp
+  ld fp, self, $FLookahead.fp
+  ;;; free(self)
+  free self
+  ;;; return fp
+  ret fp
+
+; Consume the next byte from the file (or buffer)
+;
+; *FLookahead: self
+; return(byte)
+; exit on-eof()
+; exit on-error()
+.func FLookahead.pop self,  on-eof, on-error
+  .reg c, out
+  .reg t1
+  ;;; if self->hasPeek {
+  ld t1, self, $FLookahead.hasPeek
+  zjmp t1, @else
+    ;;; out, self->hasPeek = self->buf, False
+    ld out, self, $FLookahead.buf
+    mov t1, 0
+    st self, $FLookahead.hasPeek, t1
+  ;;; } else {
+  jmp @done
+  @else:
+    ;;; out = getc(self->fp)
+    ld t1, self, $FLookahead.fp
+    getb out, t1
+  ;;; }
+  @done:
+  ;;; return FLookahead._return(out, on-eof, on-error)
+  jar &FLookahead._return, out, on-eof, on-error
+
+; Look at the next byte in the file (or buffer) without consuming.
+;
+; *FLookahead self
+; return(byte)
+; exit on-eof()
+; exit on-error()
+.func FLookahead.peek self,  on-eof, on-error
+.reg c, out
+  .reg t1
+  ;;; if self->hasPeek {
+  ld t1, self, $FLookahead.hasPeek
+  zjmp t1, @else
+    ;;; out = self->buf
+    ld out, self, $FLookahead.buf
+  ;;; } else {
+  jmp @done
+  @else:
+    ;;; out = getc(self->fp)
+    ld t1, self, $FLookahead.fp
+    getb out, t1
+    ;;; self->{hasPeek,buf} = True, out
+    mov t1, 1
+    st self, $FLookahead.hasPeek, t1
+    st self, $FLookahead.buf, out
+  ;;; }
+  @done:
+  ;;; return FLookahead._return(out, on-eof, on-error)
+  jar &FLookahead._return, out, on-eof, on-error
+
+; Helper that manages control flow after an attempt to read a byte
+;
+; int out: the result of the byte read attempt as from the `getb` instruction
+; return(byte: the successfully read byte)
+; exit on-eof()
+; exit on-error()
+.func FLookahead._return out,  on-eof, on-error
+  .reg c
+  .reg t1
+  ;;; if out == EOF {
+  eq c, out, 256
+  zjmp c, @not-eof
+    ;;; exit on-eof()
+    mov %0, on-eof
+    ret
+  ;;; } else if out < 0 {
+  @not-eof:
+  lt c, out, 0
+  zjmp c, @ok
+    ;;; exit on-error()
+    mov %0, on-error
+    ret
+  ;;; } else {
+  @ok:
+    ;;; return out
+    ret out
+  ;;; }

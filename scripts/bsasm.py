@@ -247,7 +247,7 @@ class Asm:
   def OP_hcf(self):
     self.append(b"\x00")
   ###### Byte Pushing ######
-  def OP_scal(self, a): self.op_reg(a, 0x01)
+  def OP_off(self, a, b): self.op_reg_imm(a, b, 0x01)
   def OP_mov(self, a, b): self.op_reg_regimm(a, b, whenReg=0x02, whenImm=0x03)
   def OP_ld(self, a, b, c=None):
     _, dst = self.arg(a, 'r')
@@ -544,7 +544,7 @@ class Asm:
       nonlocal toks
       if not toks: return None
       tok = toks[0]
-      if re.match(r"^[0-9]+$", tok):
+      if re.match(r"^[+-]?[0-9]+$", tok):
         tok = int(tok)
       elif re.match(r"^[0-9a-fA-F]+h$", tok):
         tok = int(tok[:-1], base=16)
@@ -594,11 +594,13 @@ class Asm:
     return wholeExpr
 
 def mkVarint(n):
+  negative = n < 0
+  if negative: n = -n
   out = b""
   while n >= 0x40:
     n, b = n >> 7, n & 0x7f
     out = (b + (0x80 if out else 0)).to_bytes(1, 'big') + out
-  out = (n + (0x80 if out else 0)).to_bytes(1, 'big') + out
+  out = ((0x80 if out else 0) + (0x40 if negative else 0) + n).to_bytes(1, 'big') + out
   return out
 
 class ParseExn(Exception):

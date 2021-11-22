@@ -1,41 +1,46 @@
 ; Library for manipulating dynamically-sized buffers of bytes.
 ;
-; export struct bytebuf
-; export $bytebuf.{len,buf}
-; export bytebuf.{new,del}
-; export bytebuf.resize
-; export bytebuf.append
+; export struct ByteBuf
+; export $ByteBuf.{lenstr,len,buf}
+; export ByteBuf.{new,del}
+; export ByteBuf.resize
+; export ByteBuf.append
 
 
-; struct bytebuf {
-;   uint cap
-    .def bytebuf.cap 0
-;   uint len
-    .def bytebuf.len 1
-;   *byte buf
-    .def bytebuf.buf 2
-; }
+;;; struct ByteBuf {
+  ;;; uint cap
+  .def ByteBuf.cap 0
+  ;;; struct lenstr {
+  .def ByteBuf.lenstr 1
+    ;;; uint len
+    .def ByteBuf.len 1
+    ;;; *byte buf
+    .def ByteBuf.buf 2
+  ;;; }
+;;; }
+.def ByteBuf.size 3
 
 ; Create a new bytebuffer.
 ;
 ; uint cap0: initial capacity
-; return(?*bytebuf: pointer to new buffer)
-.func bytebuf.new cap0
+; return(?*ByteBuf: pointer to new buffer)
+.func ByteBuf.new cap0
   .reg out, buf
   .reg t1
-  ;;; malloc(3*sizeof(word))
-  mov t1, 3
-  scal t1
+  ;;; malloc(sizeof(ByteBuf))
+  mov t1, 0
+  off t1, $ByteBuf.size
   new out, t1
   zjmp out, @no-out
   ;;; out.{cap,len} = cap0, 0
-  st out, $bytebuf.cap, cap0
+  st out, $ByteBuf.cap, cap0
   mov t1, 0
-  st out, $bytebuf.len, t1
+  st out, $ByteBuf.len, t1
   ;;; out.buf = malloc(cap0)
   new buf, cap0
   zjmp buf, @no-buffer
-  st out, $bytebuf.buf, buf
+  st out, $ByteBuf.buf, buf
+  ;;; return out
   ret out
 @no-buffer:
   ;;; free(out); out = NULL
@@ -45,14 +50,14 @@
   ;;; return out // which is always NULL here
   ret out
 
-; Deallocate all data structures owned by this bytebuf
+; Deallocate all data structures owned by this ByteBuf
 ;
-; *bytebuf self
+; *ByteBuf self
 ; return()
-.func bytebuf.del self
+.func ByteBuf.del self
   .reg buf
   ;;; free(self->buf), free(self)
-  ld buf, self, $bytebuf.buf
+  ld buf, self, $ByteBuf.buf
   free buf
   free self
   ;;; return
@@ -60,27 +65,27 @@
 
 ; Grow capacity or shrink length.
 ;
-; &bytebuf self
+; &ByteBuf self
 ; uint size
 ; return()
 ; exit nomem()
-.func bytebuf.resize self, size, nomem
+.func ByteBuf.resize self, size, nomem
   .reg c
   .reg t1
   ;;; if size < self->len
-  ld t1, self, $bytebuf.len
+  ld t1, self, $ByteBuf.len
   lt c, size, t1
   zjmp c, @larger
     ;;; self->len = size
-    st self, $bytebuf.len, size
+    st self, $ByteBuf.len, size
     ret
   @larger:
   ;;; elif (self->cap < size)
-  ld t1, self, $bytebuf.cap
+  ld t1, self, $ByteBuf.cap
   lt c, t1, size
   zjmp c, @end-cond
     ;;; new = realloc(self->buf, size)
-    ld t1, self, $bytebuf.buf
+    ld t1, self, $ByteBuf.buf
     rnew t1, size
     ;;; when !new
     cjmp t1, @ok
@@ -89,7 +94,7 @@
       ret
     @ok:
     ;;; self->buf = new
-    st self, $bytebuf.buf, t1
+    st self, $ByteBuf.buf, t1
   ;;; else {}
 @end-cond:
   ;;; return
@@ -97,16 +102,16 @@
 
 ; Add a single byte to the end of the buffer
 ;
-; &bytebuf self
+; &ByteBuf self
 ; byte byte
 ; return()
 ; exit nomem()
-.func bytebuf.append self, byte, nomem
+.func ByteBuf.append self, byte, nomem
   .reg c, cap, len, buf
   ;;; cap, len, buf = self->{cap,len,buf}
-  ld cap, self, $bytebuf.cap
-  ld len, self, $bytebuf.len
-  ld buf, self, $bytebuf.buf
+  ld cap, self, $ByteBuf.cap
+  ld len, self, $ByteBuf.len
+  ld buf, self, $ByteBuf.buf
   ;;; when (len == cap)
   eq c, len, cap
   zjmp c, @go
@@ -120,14 +125,14 @@
       ret
     @ok:
     ;;; self->{cap,buf} = cap, buf
-    st self, $bytebuf.cap, cap
-    st self, $bytebuf.buf, buf
+    st self, $ByteBuf.cap, cap
+    st self, $ByteBuf.buf, buf
   @go:
   ;;; self->buf[len] = byte
   add buf, len
   stb buf, byte
   ;;; self->len = len + 1
   add len, 1
-  st self, $bytebuf.len, len
+  st self, $ByteBuf.len, len
   ;;; return
   ret

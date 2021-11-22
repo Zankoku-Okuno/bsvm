@@ -7,7 +7,7 @@ void cycle(Machine* self) {
     // 0x00: halt and catch fire in case ip goes out-of-bounds
     case 0x00: halt(self); break;
     // 0x01 - 0x0F: loads, stores, moves, and address calculation
-    case 0x01: scaleSize(self); break;
+    case 0x01: offset(self); break;
     case 0x02: move(self); break;
     case 0x03: moveImm(self); break;
     case 0x04: load(self); break;

@@ -25,12 +25,13 @@ void halt(Machine* self) {
   self->exitcode = -1;
 }
 
-// 0x01 SCAL r<dst>
-// Scale dst by size of word
+// 0x01 OFF r<dst>, imm<src>
+// Add src * sizeof(word) to dst
 static inline
-void scaleSize(Machine* self) {
+void offset(Machine* self) {
   size_t dst = readVarint(&self->ip);
-  self->top->r[dst].bits *= sizeof(word);
+  size_t imm = readVarint(&self->ip);
+  self->top->r[dst].bits += sizeof(word) * imm;
 }
 
 // 0x02 MOV r<dst>, r<src>
