@@ -14,7 +14,7 @@
   ;;; int buf
   .def FLookahead.buf 2
 ;;; }
-.def FLookahead.size 3
+.def FLookahead.sizeof 3
 
 
 ; Create a new file handle with single-byte lookahead.
@@ -26,7 +26,7 @@
   .reg t1
   ;;; out = malloc(sizeof(FLookahead))
   mov t1, 0
-  off t1, $FLookahead.size
+  off t1, $FLookahead.sizeof
   new out, t1
   zjmp out, @no-out
   ;;; out.{fp,hasPeek} = fp, False

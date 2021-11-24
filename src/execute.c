@@ -7,7 +7,7 @@ void cycle(Machine* self) {
     // 0x00: halt and catch fire in case ip goes out-of-bounds
     case 0x00: halt(self); break;
     // 0x01 - 0x0F: loads, stores, moves, and address calculation
-    case 0x01: offset(self); break;
+    // case 0x01: ???(self); break;
     case 0x02: move(self); break;
     case 0x03: moveImm(self); break;
     case 0x04: load(self); break;
@@ -64,15 +64,18 @@ void cycle(Machine* self) {
     case 0x41: vmFree(self); break;
     case 0x42: vmRealloc(self); break;
     // case 0x43: ???(self); break;
+    case 0x44: offset(self); break;
+    case 0x45: offsetImm(self); break;
+    // case 0x46: ???(self); break;
+    // case 0x47: ???(self); break;
     case 0x48: memMove(self); break;
-    // TODO mset r<dst>, r<len>, r<src>, r<srcLen> // ??? cycle through srcLen chars of src, filling dst up to len chars
-    // TODO mcmp r<dst>, r<src1>, r<src2>, r<len>
-    // TODO mcat r<dst>, imm<n>, r<lengths -> word[n]>, r<strs -> byte*[n]>
-    // TODO mbrk r<dst>, r<src>, r<len>, r<chrs>, r<numChrs> // like C strpbrk
-    // TODO mspn r<dst>, r<src>, r<len>, r<chrs>, r<numChrs> // like C strcspn
-    // TODO mstr // find an infix like C strstr
-    // // split, join, and strip are likely useful string functions
-    // // perhaps mcat --> mimp (implode), and add mexp (explode)
+    // TODO case 0x49: memSet(self); break;
+    // TODO case 0x4A: mbrk r<dst>, r<src>, r<len>, r<chrs>, r<numChrs> // like C strpbrk
+    // TODO case 0x4B: mspn r<dst>, r<src>, r<len>, r<chrs>, r<numChrs> // like C strcspn
+    // TODO case 0x4C: memImplode(self); break;
+    // TODO case 0x4D: memExplode(self); break;
+    case 0x4E: memEqual(self); break;
+    case 0x4F: memNotEqual(self); break;
 
     // 0x50-0x5F tests
     case 0x50: bitTest(self); break;

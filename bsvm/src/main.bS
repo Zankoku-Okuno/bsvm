@@ -1,0 +1,141 @@
+.shebang /usr/bin/env bsvm
+.entrypoint &_start
+
+.func main
+  .reg asm, ofile, ofilelen = ofile, ofilestr
+  .reg fp, msg, msglen = msg, msgstr
+  .reg i, argc, noOpts
+  .reg arg, arglen = arg, argstr
+  .reg c, t1
+  ;;; ofile, noOpts = NULL, False
+  mov ofilelen, 0
+  mov ofilestr, 0
+  mov noOpts, $False
+
+  ;;; for (i = 1, i < argc, ++i) {
+  mov i, 1
+  argc argc
+  @loop:
+  lt c, i, argc
+  zjmp c, @loop.done
+    ;;; arg = argv[i]
+    lea arg, arg
+    argv arg, i
+    ;;; if noOpts { goto no-opts() }
+    cjmp noOpts, @no-opts
+
+    ;;; elif arg == "--help" {
+    eq c, arglen, $main.opt.help.len
+    zjmp c, @help.no
+    lia t1, &main.opt.help
+    meq c, argstr, t1, arglen
+    zjmp c, @help.no
+      ;;; Print.asciiz(stdout, main.msg.help); break
+      strm fp, 1
+      lia msgstr, &main.msg.help
+      jal &Print.asciiz, fp, msgstr
+      jmp @loop.break
+    ;;; }
+    @help.no:
+
+    ;;; elif arg == "--version" {
+    eq c, arglen, $main.opt.version.len
+    zjmp c, @version.no
+    lia t1, &main.opt.version
+    meq c, argstr, t1, arglen
+    zjmp c, @version.no
+      ;;; Print.asciiz(stdout, main.msg.version); break
+      strm fp, 1
+      lia msgstr, &main.msg.version
+      jal &Print.asciiz, fp, msgstr
+      jmp @loop.break
+    ;;; }
+    @version.no:
+
+    ;;; elif arg == "--output" || arg == "-O" {
+    eq c, arglen, $main.opt.output.len
+    zjmp c, @output.2
+    lia t1, &main.opt.output
+    meq c, argstr, t1, arglen
+    zjmp c, @output.2
+    jmp @is-output
+    @output.2:
+    eq c, arglen, $main.opt.O.len
+    zjmp c, @output.no
+    lia t1, &main.opt.O
+    meq c, argstr, t1, arglen
+    zjmp c, @output.no
+    @is-output:
+      ;;; if ofile == NULL {
+      cjmp ofilestr, @ofile-dblset
+        ;;; arg = argv[++i]
+        add i, 1
+        lt c, i, argc
+        cjmp c, @inc-ok
+          ;;; Print.asciiz(stderr, main.msg.version); break
+          strm fp, 2
+          lia msgstr, &main.msg.err.missingOutput
+          jal &Print.asciiz, fp, msgstr
+          jmp @loop.break
+        @inc-ok:
+        lea arg, arg
+        argv arg, i
+        ;;; ofile = arg; continue
+        mov ofilelen, arglen
+        mov ofilestr, argstr
+        jmp @loop.continue
+      ;;; } else {
+      @ofile-dblset:
+        ;;; write(stderr, main.msg.err.doubleOutput); break
+        strm fp, 2
+        lia msgstr, &main.msg.err.doubleOutput
+        jal &Print.asciiz, fp, msgstr
+        jmp @loop.break
+      ;;; }
+    ;;; }
+    @output.no:
+
+    ;;; elif arg == "--" {
+    eq c, arglen, $main.opt.dashdash.len
+    zjmp c, @dashdash.no
+    lia t1, &main.opt.dashdash
+    meq c, argstr, t1, arglen
+    zjmp c, @dashdash.no
+      ;;; noOpts = True; continue
+      mov noOpts, $True
+      jmp @loop.continue
+    ;;; }
+    @dashdash.no:
+
+    ;;; else no-opts: {
+    @no-opts:
+      ;;; asmFile(asm, arg.str)
+      jal &asmFile, asm, argstr
+    ;;; }
+
+  ;;; }
+  @loop.continue:
+  add i, 1
+  jmp @loop
+  ;;; exitwhen {
+    ;;; break() { exit(1) }
+      @loop.break:
+      mov %0, 1
+      exit %0
+  ;;; }
+  @loop.done:
+  ;;; exit(0)
+  mov %0, 0
+  exit %0
+
+
+.func asmFile self, fnamez
+  ;;; TODO
+  .reg fp
+  strm fp, 1
+  jal &Print.asciiz, fp, fnamez
+  jar &Print.nl, fp
+
+.func _start
+  ;;; TODO initialize constants
+  jar &main

@@ -36,7 +36,6 @@ def main():
     fp.write(len(asm.code).to_bytes(4, 'big'))
     fp.write((asm.entrypoint or 0).to_bytes(4, 'big'))
     fp.write(asm.code)
-  print("ding!")
 
 class AsmExn(Exception):
   pass
@@ -59,7 +58,7 @@ class Asm:
     self.shebang = None
     self.entrypoint = None
     self.code = bytearray(b"")
-    self.rewrites = dict() # Map[WaitOnLabelName, Map[Offset, Expr]]
+    self.rewrites = dict() # Map[WaitOnLabelName, Map[Offset, Expr]] # FIXME store line number also
 
   def asmLine(self, line):
     self.lineno += 1
@@ -117,7 +116,7 @@ class Asm:
       f(*args)
     except TypeError:
       raise AsmExn("incorrect number of arguments to {}: {}".format(opcode, len(args)))
-  
+
   def append(self, code):
     self.code += code
     self.offset += len(code)
@@ -198,20 +197,20 @@ class Asm:
       else:
         raise AsmExn("bad parameter name: {}".format(repr(param)))
   def DIR_reg(self, args):
+    regindex = self.functionSize
     for arg in (arg.strip() for arg in args.split(',') if arg.strip()):
-      m = re.match(r"([a-zA-Z0-9._-]+)(?:\s*=\s*([0-9]+))?", arg)
+      m = re.match(r"([a-zA-Z0-9._-]+)(?:\s*=\s*(%[0-9]+|[a-zA-Z0-9._-]+))?", arg)
       if m is None:
         raise AsmExn("bad register definition: {}".format(repr(arg)))
-      regname, regindex = m.group(1), m.group(2)
-      if regindex is None:
-        regindex = self.functionSize
-      else:
-        regindex = int(regindex)
+      regname, regexpr = m.group(1), m.group(2)
+      if regexpr is not None:
+        _, regindex = self.arg(regexpr, 'r')
       if regname in self.regtab:
         raise AsmExn("duplicate register definition: {}".format(regname))
       if regname != "_":
         self.regtab[regname] = regindex
-      self.functionSize = max(self.functionSize, regindex + 1)
+      regindex += 1
+      self.functionSize = max(self.functionSize, regindex)
   def DIR_def(self, args):
     tmp = args.strip().split(" ")
     if len(tmp) < 2:
@@ -247,7 +246,6 @@ class Asm:
   def OP_hcf(self):
     self.append(b"\x00")
   ###### Byte Pushing ######
-  def OP_off(self, a, b): self.op_reg_imm(a, b, 0x01)
   def OP_mov(self, a, b): self.op_reg_regimm(a, b, whenReg=0x02, whenImm=0x03)
   def OP_ld(self, a, b, c=None):
     _, dst = self.arg(a, 'r')
@@ -306,10 +304,14 @@ class Asm:
     _, src = self.arg(a, 'r')
     self.append(b"\x41" + mkVarint(src))
   def OP_rnew(self, a, b): self.op_reg_reg(a, b, 0x42)
-  # 0x43 - 0x47
+  # 0x43
+  def OP_off(self, a, b): self.op_reg_regimm(a, b, whenReg=0x44, whenImm=0x45)
+  # 0x46 - 0x47
   def OP_mmov(self, a, b, c): self.op_reg_reg_reg(a, b, c, 0x48)
+  # 0x49 - 0x4D
+  def OP_meq(self, a, b, c, d): self.op_reg_reg_reg_reg(a, b, c, d, 0x4E)
+  def OP_mneq(self, a, b, c, d): self.op_reg_reg_reg_reg(a, b, c, d, 0x4F)
 
-  # 0x42–4F
   ###### Comparisons ######
   def OP_bit(self, a, b, c):
     _, bit = self.arg(a, 'i')
@@ -425,6 +427,13 @@ class Asm:
       self.append(whenReg.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src) + mkVarint(amt))
     elif aType == 'i':
       self.append(whenImm.to_bytes(1, 'big') + mkVarint(dst) + mkVarint(src) + mkVarint(amt))
+  def op_reg_reg_reg_reg(self, a, b, c, d, opcode):
+    _, r1 = self.arg(a, 'r')
+    _, r2 = self.arg(b, 'r')
+    _, r3 = self.arg(c, 'r')
+    _, r4 = self.arg(d, 'r')
+    self.append(opcode.to_bytes(1, 'big') + mkVarint(r1) + mkVarint(r2) + mkVarint(r3) + mkVarint(r4))
+
   def op_regs(self, *args, opcode):
     n = len(args)
     srcs = [self.arg(a ,'r')[1] for a in args]
@@ -475,7 +484,7 @@ class Asm:
     self.append(mkVarint(n))
     for src in srcs:
       self.append(mkVarint(src))
-  
+
   def parseExpr(self, text):
     # sum ::= term ([+-] sum)?
     # term ::= e ([*/] term)>

@@ -1,0 +1,95 @@
+; This library provides a way to reference sections of a bytearray.
+; Conveniently, the layout of a ByteSlice is identical to the length+byteptr
+; format the ISA uses.
+;
+; Note that a ByteSlice does not take ownership of the backing array.
+;
+; export $ByteSlice.*
+; export ByteSlice.{new,del}
+; export ByteSlice.index
+
+;;; type ByteSlice = lenstr<&>
+  .def ByteSlice.len $lenstr.len
+  .def ByteSlice.str $lenstr.str
+  .def ByteSlice.sizeof $lenstr.sizeof
+
+
+; Create a new slice from a byte string or existing slice.
+;
+; &(lenstr<_>) other
+; uint offset
+; uint len
+; return(?*ByteSlice)
+; exit on-oob()
+.func ByteSlice.new other, offset, len, on-oob
+  .reg self
+  .reg c, t1, t2
+  ;;; when other->len < offset || other->len < offset + len { exit on-oob() }
+  ld t1, other, $ByteSlice.len
+  bl c, t1, offset
+  zjmp c, @oob
+  mov t2, offset
+  add t2, len
+  bl c, t1, t2
+  zjmp c, @oob
+  ;;; self = malloc(sizeof(ByteSlice))
+  mov t1, 0
+  off t1, $ByteSlice.len
+  new self, t1
+  zjmp self, @oom
+  ;;; self->{len,str} = other->len - offset, &other->str[offset]
+  ld t1, other, $ByteSlice.len
+  sub t1, offset
+  st self, $ByteSlice.len, t1
+  ld t1, other, $ByteSlice.str
+  add t1, offset
+  st self, $ByteSlice.str, t1
+  ;;; return self
+  ret self
+@oob:
+  mov %0, on-oob
+  ret
+@oom:
+  ret self
+
+; &ByteSlice self
+; uint i
+; return(byte)
+; exit on-oob()
+.func ByteSlice.index self, i, on-oob
+  .reg t1
+  ;;; if self->len <= i { exit on-oob() }
+  ld t1, self, $ByteSlice.len
+  ble t1, t1, i
+  cjmp t1, @ok
+  mov %0, on-oob
+  ret
+  @ok:
+  ;;; return self->str[i]
+  ld t1, self, $ByteSlice.str
+  add t1, i
+  ldb t1, t1
+  ret t1
+
+.func ByteSlice.pop self, on-nil
+  .reg out, len
+  .reg t1, t2
+  ;;; if self->len == 0 { exit on-nil() }
+  ld len, self, $ByteSlice.len
+  zjmp len, @nil
+  ;;; out = self->str[0]
+  mov t1, self
+  add t1, $ByteSlice.str
+  ldb out, t1
+  ;;; self->len--
+  sub len, 1
+  st self, $ByteSlice.len, len
+  ;;; self->str++
+  ld t1, self, $ByteSlice.str
+  add t1, 1
+  st self, $ByteSlice.str, t1
+  ;;; return out
+  ret out
+@nil:
+  mov %0, on-nil
+  ret

@@ -25,15 +25,6 @@ void halt(Machine* self) {
   self->exitcode = -1;
 }
 
-// 0x01 OFF r<dst>, imm<src>
-// Add src * sizeof(word) to dst
-static inline
-void offset(Machine* self) {
-  size_t dst = readVarint(&self->ip);
-  size_t imm = readVarint(&self->ip);
-  self->top->r[dst].bits += sizeof(word) * imm;
-}
-
 // 0x02 MOV r<dst>, r<src>
 static inline
 void move(Machine* self) {
@@ -140,7 +131,7 @@ static inline
 void loadByte(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t src = readVarint(&self->ip);
-  self->top->r[dst].byte.low = *self->top->r[src].bptr;
+  self->top->r[dst].bits = *self->top->r[src].bptr;
 }
 
 // 0x0E STB r<dst>, r<src>
@@ -516,9 +507,25 @@ void vmRealloc(Machine* self) {
   self->top->r[ptr].bptr = realloc(self->top->r[ptr].bptr, self->top->r[src].bits);
 }
 
+// 0x44 OFF r<dst>, reg<src>
+// Add src * sizeof(word) to dst
+static inline
+void offset(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t src = readVarint(&self->ip);
+  self->top->r[dst].bits += sizeof(word) * self->top->r[src].bits;
+}
 
+// 0x45 OFF r<dst>, imm<src>
+// Add imm * sizeof(word) to dst
+static inline
+void offsetImm(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t imm = readVarint(&self->ip);
+  self->top->r[dst].bits += sizeof(word) * imm;
+}
 
-// 0x44 MMOV r<dst>, r<src>, r<len>
+// 0x48 MMOV r<dst>, r<src>, r<len>
 // Copy len bytes from src to dst.
 //
 // This works even when the src/dst memory regions overlap.
@@ -530,6 +537,36 @@ void memMove(Machine* self) {
   memmove(self->top->r[dst].bptr, self->top->r[src].bptr, self->top->r[len].bits);
 }
 
+// I've decided to include only testing equality of byte strings rather than
+// ordering (i.e. C memcmp). Most of the time, ordering of the data encoded in
+// those bytes is not simple lexicographic ordering: even a simple little-endian
+// number—or even a signed big-endian number—will alter ordering.
+
+// 0x4E MEQ r<dst>, r<src1>, r<src2>, r<len>
+// Set dst iff len bytes at the start of src1 are equal to bytes starting at src2
+static inline
+void memEqual(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t src1 = readVarint(&self->ip);
+  size_t src2 = readVarint(&self->ip);
+  size_t len = readVarint(&self->ip);
+  int res = memcmp(self->top->r[src1].bptr, self->top->r[src2].bptr
+                   , self->top->r[len].bits);
+  self->top->r[dst].bits = (res == 0) ? 1 : 0;
+}
+
+// 0x4F MNEQ r<dst>, r<src1>, r<src2>, r<len>
+// Set dst iff len bytes at the start of src1 are not equal to bytes starting at src2
+static inline
+void memNotEqual(Machine* self) {
+  size_t dst = readVarint(&self->ip);
+  size_t src1 = readVarint(&self->ip);
+  size_t src2 = readVarint(&self->ip);
+  size_t len = readVarint(&self->ip);
+  int res = memcmp(self->top->r[src1].bptr, self->top->r[src2].bptr
+                   , self->top->r[len].bits);
+  self->top->r[dst].bits = (res == 0) ? 0 : 1;
+}
 
 /************************************
  Comparisons
@@ -1011,19 +1048,16 @@ void getArgc(Machine* self) {
 // 0xC3 ARGV r<dst>, r<ix>
 // Create a handle to a copy of the ix-th argument.
 // The handle is two words: a length and a pointer to a NUL-terminated string of that length.
-// The pointer is freshly-allocated, so should be freed when finished with it.
+// The pointer is global, and so should not be freed/mutated.
 // The handle is written to the contents of the pointer stored in dst.
 static inline
 void getArgv(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t ix = readVarint(&self->ip);
   char* nulstrp = self->environ.argv[self->top->r[ix].bits];
-  size_t len = strlen(nulstrp);
-  byte* new = malloc(len + 1);
-  memcpy(new, nulstrp, len+1);
   word* tgt = self->top->r[dst].wptr;
-  tgt[0].bits = len;
-  tgt[1].bptr = new;
+  tgt[0].bits = strlen(nulstrp);
+  tgt[1].bptr = (byte*)nulstrp;
 }
 
 // 0xD0 OPEN imm<mode>, r<dst>, r<src>

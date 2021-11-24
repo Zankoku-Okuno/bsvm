@@ -1,0 +1,38 @@
+; This file contains string constants for the entire bsasm program.
+
+main.opt.dashdash:
+main.opt.help:
+.ascii '--'
+main.opt.dashdash.end:
+.def main.opt.dashdash.len &main.opt.dashdash.end - &main.opt.dashdash
+.ascii 'help'
+main.opt.help.end:
+.def main.opt.help.len &main.opt.help.end - &main.opt.help
+
+main.opt.version:
+.ascii '--version'
+main.opt.version.end:
+.def main.opt.version.len &main.opt.version.end - &main.opt.version
+
+main.opt.output:
+.ascii '--output'
+main.opt.output.end:
+.def main.opt.output.len &main.opt.output.end - &main.opt.output
+main.opt.O:
+.ascii '-O'
+main.opt.O.end:
+.def main.opt.O.len &main.opt.O.end - &main.opt.O
+
+
+main.msg.help:
+.ascii 'usage: bsasm [--output|-O <outfile>] <infiles...>',10,0
+
+main.msg.version:
+.ascii 'bsasm v0.1.0',10,0
+
+main.msg.err.missingOutput:
+.ascii 'Missing output file',10,0
+
+main.msg.err.doubleOutput:
+.ascii 'Only one output file is allowed',10,0
+

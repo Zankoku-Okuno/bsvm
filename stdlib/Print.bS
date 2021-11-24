@@ -1,0 +1,26 @@
+; This file contains helper functions for writing human-readble data.
+
+; Print a (UNIX-style) newline
+.func Print.nl fp
+  .reg char
+  mov char, 10
+  putb fp, char
+  ret
+
+; Print a NUL-terminated string.
+.func Print.asciiz fp, msg
+  .reg char
+  ;;; loop {
+  @loop:
+    ;;; char = *(msg++)
+    ldb char, msg
+    add msg, 1
+    ;;; while char != 0
+    zjmp char, @loop.done
+    ;;; put(fp, char)
+    putb fp, char
+  ;;; }
+  jmp @loop
+  @loop.done:
+  ;;; return
+  ret

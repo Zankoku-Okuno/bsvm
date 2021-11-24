@@ -1,45 +1,42 @@
 ; Library for manipulating dynamically-sized buffers of bytes.
 ;
 ; export struct ByteBuf
-; export $ByteBuf.{lenstr,len,buf}
+; export $ByteBuf.{lenstr,len,str}
 ; export ByteBuf.{new,del}
 ; export ByteBuf.resize
 ; export ByteBuf.append
 
 
 ;;; struct ByteBuf {
-  ;;; uint cap
+  ;;; cap: uint
   .def ByteBuf.cap 0
-  ;;; struct lenstr {
+  ;;; unpack lenstr<*>
   .def ByteBuf.lenstr 1
-    ;;; uint len
-    .def ByteBuf.len 1
-    ;;; *byte buf
-    .def ByteBuf.buf 2
-  ;;; }
+    .def ByteBuf.len $ByteBuf.lenstr + $lenstr.len
+    .def ByteBuf.str $ByteBuf.lenstr + $lenstr.str
 ;;; }
-.def ByteBuf.size 3
+.def ByteBuf.sizeof 1 + $lenstr.sizeof
 
 ; Create a new bytebuffer.
 ;
 ; uint cap0: initial capacity
 ; return(?*ByteBuf: pointer to new buffer)
 .func ByteBuf.new cap0
-  .reg out, buf
+  .reg out, str
   .reg t1
   ;;; malloc(sizeof(ByteBuf))
   mov t1, 0
-  off t1, $ByteBuf.size
+  off t1, $ByteBuf.sizeof
   new out, t1
   zjmp out, @no-out
   ;;; out.{cap,len} = cap0, 0
   st out, $ByteBuf.cap, cap0
   mov t1, 0
   st out, $ByteBuf.len, t1
-  ;;; out.buf = malloc(cap0)
-  new buf, cap0
-  zjmp buf, @no-buffer
-  st out, $ByteBuf.buf, buf
+  ;;; out->str = malloc(cap0)
+  new str, cap0
+  zjmp str, @no-buffer
+  st out, $ByteBuf.str, str
   ;;; return out
   ret out
 @no-buffer:
@@ -55,10 +52,10 @@
 ; *ByteBuf self
 ; return()
 .func ByteBuf.del self
-  .reg buf
-  ;;; free(self->buf), free(self)
-  ld buf, self, $ByteBuf.buf
-  free buf
+  .reg str
+  ;;; free(self->str), free(self)
+  ld str, self, $ByteBuf.str
+  free str
   free self
   ;;; return
   ret
@@ -74,7 +71,7 @@
   .reg t1
   ;;; if size < self->len
   ld t1, self, $ByteBuf.len
-  lt c, size, t1
+  bl c, size, t1
   zjmp c, @larger
     ;;; self->len = size
     st self, $ByteBuf.len, size
@@ -82,10 +79,10 @@
   @larger:
   ;;; elif (self->cap < size)
   ld t1, self, $ByteBuf.cap
-  lt c, t1, size
+  bl c, t1, size
   zjmp c, @end-cond
-    ;;; new = realloc(self->buf, size)
-    ld t1, self, $ByteBuf.buf
+    ;;; new = realloc(self->str, size)
+    ld t1, self, $ByteBuf.str
     rnew t1, size
     ;;; when !new
     cjmp t1, @ok
@@ -93,8 +90,9 @@
       mov %0, nomem
       ret
     @ok:
-    ;;; self->buf = new
-    st self, $ByteBuf.buf, t1
+    ;;; self->{size,str} = size, new
+    st self, $ByteBuf.sizeof, size
+    st self, $ByteBuf.str, t1
   ;;; else {}
 @end-cond:
   ;;; return
@@ -107,30 +105,31 @@
 ; return()
 ; exit nomem()
 .func ByteBuf.append self, byte, nomem
-  .reg c, cap, len, buf
-  ;;; cap, len, buf = self->{cap,len,buf}
+  .reg c, cap, len, str
+  ;;; cap, len, str = self->{cap,len,str}
   ld cap, self, $ByteBuf.cap
   ld len, self, $ByteBuf.len
-  ld buf, self, $ByteBuf.buf
+  ld str, self, $ByteBuf.str
   ;;; when (len == cap)
   eq c, len, cap
   zjmp c, @go
-    ;;; buf = realloc(buf, 2*cap)
+    ;;; cap *= 2
     add cap, cap
-    rnew buf, cap
-    ;;; when !buf
-    cjmp buf, @ok
+    ;;; str = realloc(str, cap)
+    rnew str, cap
+    ;;; when !str
+    cjmp str, @ok
       ;;; exit nomem()
       mov %0, nomem
       ret
     @ok:
-    ;;; self->{cap,buf} = cap, buf
+    ;;; self->{cap,str} = cap, str
     st self, $ByteBuf.cap, cap
-    st self, $ByteBuf.buf, buf
+    st self, $ByteBuf.str, str
   @go:
-  ;;; self->buf[len] = byte
-  add buf, len
-  stb buf, byte
+  ;;; self->str[len] = byte
+  add str, len
+  stb str, byte
   ;;; self->len = len + 1
   add len, 1
   st self, $ByteBuf.len, len

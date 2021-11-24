@@ -1,0 +1,56 @@
+; This library describes the data types built-into the bsvm instruction set
+; architecture (ISA). It also describes some of the (informal) type syntax that
+; we use to describe interfaces.
+
+;;; Kind ::= BYTE | WORD | Kind → Kind | [n]Kind
+;;; Type ::= byte // BYTE
+;;;       |  uint // WORD
+;;;       |  int // WORD
+;;;       |  file // WORD
+;;;       |  * // ∀k. k → WORD // owned pointer
+;;;       |  & // ∀k. k → WORD // borrowed pointer
+;;;       |  ? // WORD → WORD // nullable/maybe type
+;;;       |  [] // ∀(n: ?uint, k). [n]k
+;;;       |  Type₁ Type₂ // standard application order
+;;;                         (i.e. Haskell `List a`, not ML `elem list`)
+;;;       |  (Type₁ | Type₂ | …) // union
+;;;       |  ( Type* ) -> Type // function pointer
+;;;       |  exit ( Type* ) // continuation
+
+
+;;; TypeDecl ::= enum Name { (Name : Value)*; }
+;;;           |  struct Name ( < (Type : Name)*, > )? { Name : Type }
+;;;           |  type Name = Type
+
+; This is the boolean encoding used in the ISA's conditionals.
+;;; enum bool {
+  ;;; True: 1
+  .def True 1
+  ;;; False: 0
+  .def False 0
+;;; }
+
+; `lenstr` is the default string format used by the ISA.
+; It consists of a length followed by a pointer to (at least) that many bytes.
+; Ownership is allowed to vary.
+;
+; see also: strz, which is sometimes used in functions that interoperate with
+; the operating and file systems.
+;;; struct lenstr<* | &: Ptr> {
+  ;;; len: uint
+  .def lenstr.len 0
+  ;;; str: Ptr byte
+  .def lenstr.str 1
+;;; }
+.def lenstr.sizeof 2
+
+; NUL-terminated string, usually ascii or utf-8.
+; It is not recommended to use this for bytestrings, since they might contain
+; zero bytes, whereas text strings tend not to contain NUL characters.
+; It consists of a sequence of `n` bytes (which is not stored in the struct), followed immediately by a zero byte. Thus, it has kind `[n+1]BYTE`.
+;
+; see also: lenstr, which is the recommended (byte)string format for general use.
+;;; struct strz<uint: n> {
+  ;;; str: [n]byte
+  ;;; zero: byte = 0
+;;; }

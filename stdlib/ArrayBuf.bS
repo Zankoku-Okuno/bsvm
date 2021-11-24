@@ -1,0 +1,148 @@
+; Library for manipulating dynamically-sized buffers of words.
+;
+; export struct ArrayBuf
+; export $ArrayBuf.{lenarr,len,arr}
+; export ArrayBuf.{new,del}
+; export ArrayBuf.resize
+; export ArrayBuf.append
+
+
+;;; struct ArrayBuf<a: WORD> {
+  ;;; cap: uint
+  .def ArrayBuf.cap 0
+  ;;; unpack struct lenarr {
+  .def ArrayBuf.lenarr 1
+    ;;; len: uint
+    .def ArrayBuf.len 0 + $ArrayBuf.lenarr
+    ;;; arr: *a
+    .def ArrayBuf.arr 1 + $ArrayBuf.lenarr
+  ;;; }
+;;; }
+.def ArrayBuf.sizeof 3
+
+; Create a new array buffer.
+;
+; uint cap0: initial capacity
+; return(?*ArrayBuf: pointer to new buffer)
+.func ArrayBuf.new cap0
+  .reg out, arr
+  .reg t1
+  ;;; malloc(sizeof(ArrayBuf))
+  mov t1, 0
+  off t1, $ArrayBuf.sizeof
+  new out, t1
+  zjmp out, @no-out
+  ;;; out.{cap,len} = cap0, 0
+  st out, $ArrayBuf.cap, cap0
+  mov t1, 0
+  st out, $ArrayBuf.len, t1
+  ;;; out->arr = malloc(cap0*sizeof(word))
+  mov t1, 0
+  off t1, cap0
+  new arr, t1
+  zjmp arr, @no-buffer
+  st out, $ArrayBuf.arr, arr
+  ;;; return out
+  ret out
+@no-buffer:
+  ;;; free(out); out = NULL
+  free out
+  mov out, 0
+@no-out:
+  ;;; return out // which is always NULL here
+  ret out
+
+; Deallocate all data structures owned by this ArrayBuf
+;
+; *ArrayBuf self
+; return()
+.func ArrayBuf.del self
+  .reg arr
+  ;;; free(self->arr), free(self)
+  ld arr, self, $ArrayBuf.arr
+  free arr
+  free self
+  ;;; return
+  ret
+
+; Grow capacity or shrink length.
+;
+; &ArrayBuf self
+; uint size
+; return()
+; exit nomem()
+.func ArrayBuf.resize self, size, nomem
+  .reg c
+  .reg t1, t2
+  ;;; if size < self->len
+  ld t1, self, $ArrayBuf.len
+  bl c, size, t1
+  zjmp c, @larger
+    ;;; self->len = size
+    st self, $ArrayBuf.len, size
+    ret
+  @larger:
+  ;;; elif (self->cap < size)
+  ld t1, self, $ArrayBuf.cap
+  bl c, t1, size
+  zjmp c, @end-cond
+    ;;; new = realloc(self->arr, size*sizeof(word))
+    ld t1, self, $ArrayBuf.arr
+    mov t2, 0
+    off t2, size
+    rnew t1, t2
+    ;;; when !new
+    cjmp t1, @ok
+      ;;; exit nomem()
+      mov %0, nomem
+      ret
+    @ok:
+    ;;; self->{size,arr} = size,new
+    st self, $ArrayBuf.sizeof, size
+    st self, $ArrayBuf.arr, t1
+  ;;; else {}
+@end-cond:
+  ;;; return
+  ret
+
+; Add a single word to the end of the buffer
+;
+; &ArrayBuf self
+; word datum
+; return()
+; exit nomem()
+.func ArrayBuf.append self, datum, nomem
+  .reg c, cap, len, arr
+  .reg t1
+  ;;; cap, len, arr = self->{cap,len,arr}
+  ld cap, self, $ArrayBuf.cap
+  ld len, self, $ArrayBuf.len
+  ld arr, self, $ArrayBuf.arr
+  ;;; when (len == cap)
+  eq c, len, cap
+  zjmp c, @go
+    ;;; cap *= 2
+    add cap, cap
+    ;;; arr = realloc(arr, cap*sizeof(word))
+    mov t1, 0
+    off t1, cap
+    rnew arr, t1
+    ;;; when !arr
+    cjmp arr, @ok
+      ;;; exit nomem()
+      mov %0, nomem
+      ret
+    @ok:
+    ;;; self->{cap,arr} = cap, arr
+    st self, $ArrayBuf.cap, cap
+    st self, $ArrayBuf.arr, arr
+  @go:
+  ;;; self->arr[len] = datum
+  mov t1, arr
+  off t1, len
+  stb arr, datum
+  ;;; self->len = len + 1
+  add len, 1
+  st self, $ArrayBuf.len, len
+  ;;; return
+  ret
