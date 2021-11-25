@@ -1,16 +1,16 @@
 4273 766d 4578 6531
-0000 0028 # size of code
+0000 001C # size of code
 0000 0000 # entrypoint
 
 # main
-0000 0000 0000 0001 # 1 register
-  81 0000 0000 0000 0012  00# call <getnum>
+0000 0001 # 1 register
+  81 0000 000E  00# call <getnum>
   85 01  00 # into r0
   11 00 34 # addi r0, 52
   86 00 # exit r0
 
 # getnum
-0000 0000 0000 0002
+0000 0002
   03 01 20 # movi r1, 32
   84 01  01 # ret r1
 

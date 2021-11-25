@@ -8,7 +8,7 @@ cd "$HERE"
 BIN="./bin"
 LIB=../stdlib
 SRC=./src
-BSASM=../scripts/bsasm.py
+BSASM=../../scripts/bsasm.py
 "$BSASM" \
     "$LIB/isa.bS" \
     "$LIB/ByteSlice.bS" \

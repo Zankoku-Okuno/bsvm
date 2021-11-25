@@ -2,8 +2,8 @@
 
 .func main
   ;;; setup
-.reg fp = 0, _, strlen, strbytes
-.reg t1 = 1
+  .reg fp = %0, _, strlen, strbytes
+  .reg t1 = %1
   strm %0, 1
   ;;; put the first part of the string
     ; load string and compute bounds
