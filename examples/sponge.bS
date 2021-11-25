@@ -29,6 +29,7 @@
   off t1, $ByteBuf.lenstr
   put fp, t1
   ;;; exit(0)
+  jal &ByteBuf.del, buf
   mov %0, 0
   exit %0
 @nomem:

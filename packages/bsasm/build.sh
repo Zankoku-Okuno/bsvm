@@ -5,10 +5,10 @@ HERE="$(realpath "$(dirname "$0")")"
 cd "$HERE"
 
 
+BSASM=../../scripts/bsasm.py
 BIN="./bin"
 LIB=../stdlib
 SRC=./src
-BSASM=../../scripts/bsasm.py
 "$BSASM" \
     "$LIB/isa.bS" \
     "$LIB/ByteSlice.bS" \

@@ -6,8 +6,11 @@ cd "$HERE"
 
 ./build.sh
 
-BSVM=../bin/bsvm
 GOLDEN=./golden
+BSVM=../bin/bsvm
+if [ "$1" = "--valgrind" ]; then
+    BSVM="valgrind --error-exitcode=100 $BSVM"
+fi
 
 
 success=0

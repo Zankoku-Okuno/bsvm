@@ -1,4 +1,5 @@
 4273 766d 4578 6531 # magic string
-0000 0001 # 1 byte of code
+0000 0005 # 5 bytes of code
 0000 0000 # entrypoint is at offset 0
+0000 0000 # number of registers to allocate for entrypoint function
 00 # halt and catch fire
