@@ -1,14 +1,19 @@
 ; This file contains helper functions for writing human-readble data.
 
 ; Print a (UNIX-style) newline
-.func Print.nl fp
+.func Print.nl, fp
   .reg char
   mov char, 10
   putb fp, char
   ret
 
+; Print a length-tagged string.
+.func Print.lenstr, fp, msg
+  put fp, msg
+  ret
+
 ; Print a NUL-terminated string.
-.func Print.asciiz fp, msg
+.func Print.asciiz, fp, msg
   .reg char
   ;;; loop {
   @loop:
@@ -24,3 +29,77 @@
   @loop.done:
   ;;; return
   ret
+
+.func Print.word, fp, val
+  .reg i, nybble
+  .reg c
+  ;;; i = sizeof(word) * 8 // to get bits per word
+  mov i, 0
+  off i, 8
+  ;;; loop {
+  @loop:
+    ;;; i -= 4
+    sub i, 4
+    ;;; nybble = (val >> i) & 0x0F
+    szr nybble, val, i
+    and nybble, Fh
+    ;;; Print.nybble(fp, val)
+    jal &Print.nybble, fp, nybble
+  ;;; } while i != 0
+  cjmp i, @loop
+  ret
+
+.func Print.nybble, fp, val
+  .reg c
+  ;;; val += '0'
+  add val, 48
+  ;;; when !(val < ':') { val += 'A' - ':' }
+  lt c, val, 58
+  cjmp c, @ok
+  add val, 65 - 58
+  @ok:
+  ;;; putc(fp, val); return
+  putb fp, val
+  ret
+
+.func Print.char, fp, char
+  .reg mask
+  .reg c, t1
+  ;;; {
+    ;;; t1 = ((char >> 4) & 0x0F) + 48
+    szr t1, char, 4
+    and t1, 0Fh
+    add t1, 48
+    ;;; when !(t1 < 58) { t1 += 65 - 58 }
+    bl c, t1, 58
+    cjmp c, @skip1
+      add t1, 65 - 58
+    @skip1:
+    ;;; putc(t1)
+    putb fp, t1
+  ;;; }
+  ;;; {
+    ;;; t1 = (char & 0x0F) + 48
+    mov t1, char
+    and t1, 0Fh
+    add t1, 48
+    ;;; when !(t1 < 58) { t1 += 65 - 58 }
+    bl c, t1, 58
+    cjmp c, @skip2
+      add t1, 65 - 58
+    @skip2:
+    ;;; putc(t1)
+    putb fp, t1
+  ;;; }
+  ret
+
+
+
+; Print some crap to stderr as a debug technique
+.func Print.crap
+  .reg fp, msg
+  strm fp, 2
+  lia msg, @msg
+  jar &Print.asciiz, fp, msg
+@msg:
+  .ascii 'HELLO',10,0

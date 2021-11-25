@@ -54,3 +54,17 @@
   ;;; str: [n]byte
   ;;; zero: byte = 0
 ;;; }
+
+; `lenstrz` is a string format used by the ISA esp. for filenames.
+; It consists of a length followed by a NUL-terminated string of that length
+; Ownership is allowed to vary.
+;
+; see also: strz, which is sometimes used in functions that interoperate with
+; the operating and file systems.
+;;; struct lenstrz<* | &: Ptr> {
+  ;;; len: uint
+  .def lenstrz.len 0
+  ;;; str: Ptr byte
+  .def lenstrz.str 1
+;;; }
+.def lenstrz.sizeof 2

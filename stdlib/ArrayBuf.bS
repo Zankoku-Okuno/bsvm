@@ -24,7 +24,7 @@
 ;
 ; uint cap0: initial capacity
 ; return(?*ArrayBuf: pointer to new buffer)
-.func ArrayBuf.new cap0
+.func ArrayBuf.new, cap0
   .reg out, arr
   .reg t1
   ;;; malloc(sizeof(ArrayBuf))
@@ -56,7 +56,7 @@
 ;
 ; *ArrayBuf self
 ; return()
-.func ArrayBuf.del self
+.func ArrayBuf.del, self
   .reg arr
   ;;; free(self->arr), free(self)
   ld arr, self, $ArrayBuf.arr
@@ -71,7 +71,7 @@
 ; uint size
 ; return()
 ; exit nomem()
-.func ArrayBuf.resize self, size, nomem
+.func ArrayBuf.resize, self, size, nomem
   .reg c
   .reg t1, t2
   ;;; if size < self->len
@@ -111,7 +111,7 @@
 ; word datum
 ; return()
 ; exit nomem()
-.func ArrayBuf.append self, datum, nomem
+.func ArrayBuf.append, self, datum, nomem
   .reg c, cap, len, arr
   .reg t1
   ;;; cap, len, arr = self->{cap,len,arr}

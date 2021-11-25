@@ -1,0 +1,198 @@
+;;; struct Line {
+  ;;; type: LineType
+  .def Line.type 0
+  ;;; name: *ByteSlice
+  .def Line.name 1
+  ;;; args: ?*ArrayBuf<*ByteSlice>
+  .def Line.args 2
+;;; }
+.def Line.sizeof 3
+
+;;; enum LineType {
+  ;;; label = 0
+  .def LineType.label 0
+  ;;; dir = 1
+  .def LineType.dir 1
+  ;;; instr = 2
+  .def LineType.instr 2
+;;; }
+
+.func Line.del, self
+  .reg t1
+  ;;; free(self->name)
+  ld t1, self, $Line.name
+  free t1
+  ;;; free(self->args)
+  ld t1, self, $Line.args
+  free t1
+  ;;; free(self)
+  free self
+  ret
+
+
+; TODO Parse.line should create a new *Line
+; line: &lenstr<_>
+; return(?*Line)
+.func Parse.line, line
+  .reg self, type, name, args
+  .reg char0
+  .reg zero, c, t1
+  mov zero, 0
+  ;;; line = ByteSlice.copy(line)
+  jal &ByteSlice.copy, line
+  into line
+  ;;; Parse.skipWs(line)
+  jal &Parse.skipWs, line
+  ;;; if line->len == 0 { return NULL }
+  ld t1, line, $ByteSlice.len
+  cjmp t1, @non-nil
+  ret zero
+  ;;; } elif line->str[0] == ';' { return NULL }
+  @non-nil:
+  ld t1, line, $ByteSlice.str
+  ldb char0, t1
+  eq c, char0, 59
+  zjmp c, @non-comment
+  ret zero
+  ;;; } elif line->str[0] == '.' {
+  @non-comment:
+  eq c, char0, 46
+  zjmp c, @non-directive
+    ;;; ByteSlice.pop(line, undefined)
+    jal &ByteSlice.pop, line, zero
+    ;;; type, name = LineType.dir, Parse.name(line)
+    mov type, $LineType.dir
+    jal &Parse.name, line
+    into name
+    ;;; Parse.skipWs(line)
+    jal &Parse.skipWs, line
+    ;;; return Parse.args(line, type, name)
+    jar &Parse.args, line, type, name
+  ;;; } else {
+  @non-directive:
+    ;;; name = Parse.name(line); Parse.skipWs(line)
+    jal &Parse.name, line
+    into name
+    jal &Parse.skipWs, line
+    ;;; if line->len && line->str[0] == ':' {
+    ld t1, line, $ByteSlice.len
+    zjmp t1, @non-label
+    ld t1, line, $ByteSlice.str
+    ldb t1, t1
+    eq c, t1, 58
+    zjmp c, @non-label
+      ;;; self = malloc(sizeof(Line))
+      mov t1, 0
+      off t1, $Line.sizeof
+      new self, t1
+      ;;; self->{type,name,args} = LineType.label, name, 0
+      mov type, $LineType.label
+      st self, $Line.type, type
+      st self, $Line.name, name
+      st self, $Line.args, zero
+      ;;; return self
+      ret self
+    ;;; } else {
+      @non-label:
+      ;;; return Parse.args(line, LineType.instr, name)
+      mov type, $LineType.instr
+      jar &Parse.args, line, type, name
+    ;;; }
+  ;;; }
+
+; line: &ByteSlice
+; return(*ByteSlice)
+.func Parse.name, line
+  .reg name, i, char
+  .reg zero, c, t1
+  mov zero, 0
+  ;;; name = ByteSlice.copy(line)
+  jal &ByteSlice.copy, line
+  into name
+  zjmp name, &oom
+  ;;; i = 0; loop {
+  mov i, 0
+  @loop:
+    ;;; char = ByteSlice.index(line, 0, @loop.end)
+    lia t1, @loop.end
+    jal &ByteSlice.index, line, zero, t1
+    into char
+    ;;; while char in [a-zA-Z0-9@._-]
+      lt c, char, 65; >= 'A'
+      not c, c
+      lte t1, char, 90; <= 'Z'
+      and c, t1; 'A' <= <= 'Z'
+      cjmp c, @loop.no-break
+      lt c, char, 97; >= 'a'
+      not c, c
+      lte t1, char, 122; <= 'z'
+      and c, t1; 'a' <= <= 'z'
+      cjmp c, @loop.no-break
+      lt c, char, 48; >= '0'
+      not c, c
+      lte t1, char, 57; <= '9'
+      and c, t1; '0' <= <= '9'
+      cjmp c, @loop.no-break
+      eq c, char, 64; == '@'
+      cjmp c, @loop.no-break
+      eq c, char, 46; == '.'
+      cjmp c, @loop.no-break
+      eq c, char, 95; == '_'
+      cjmp c, @loop.no-break
+      eq c, char, 45; == '-'
+      cjmp c, @loop.no-break
+      jmp @loop.end
+  @loop.no-break:
+    ;;; ++i; ByteSlice.pop(line, undefined)
+    add i, 1
+    jal &ByteSlice.pop, line, zero
+  ;;; }
+  jmp @loop
+  @loop.end:
+  ;;; return name{len = i}
+  st name, $ByteSlice.len, i
+  ret name
+
+; line: *ByteSlice
+; type: LineType
+; name: *ByteSlice
+.func Parse.args, line, type, name
+  .reg self, args
+  .reg t1
+  ; TODO actually split arguments by comma (outside of sqlstrings)
+  ;;; DELME
+    mov args, 0
+  ;;; self = malloc(sizeof(Line))
+  mov t1, 0
+  off t1, $Line.sizeof
+  new self, t1
+  ;;; self->{type,name,args} = type, name, args
+  st self, $Line.type, type
+  st self, $Line.name, name
+  st self, $Line.args, args
+  ;;; return self
+  ret self
+
+; input: &ByteSlice
+.func Parse.skipWs, input
+  .reg char
+  .reg zero, c, t1
+  mov zero, 0
+  ;;; loop {
+  @loop:
+    ;;; char = ByteSlice.index(input, 0, return)
+    lia t1, @return
+    jal &ByteSlice.index, input, zero, t1
+    into char
+    ;;; while char == ' ' || char == '\t'
+    eq c, char, 32
+    eq t1, char, 9
+    or c, t1
+    zjmp c, @loop.done
+    ;;; ByteSlice.pop(input, undefined)
+    jal &ByteSlice.pop, input, zero
+  ;;; }
+  jmp @loop
+  @loop.done:
+@return:
+  ret

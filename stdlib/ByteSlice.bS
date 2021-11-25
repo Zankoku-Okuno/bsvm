@@ -21,57 +21,80 @@
 ; uint len
 ; return(?*ByteSlice)
 ; exit on-oob()
-.func ByteSlice.new other, offset, len, on-oob
+.func ByteSlice.new, other, offset, len, on-oob
   .reg self
   .reg c, t1, t2
   ;;; when other->len < offset || other->len < offset + len { exit on-oob() }
-  ld t1, other, $ByteSlice.len
+  ld t1, other, $lenstr.len
   bl c, t1, offset
-  zjmp c, @oob
+  cjmp c, @oob
   mov t2, offset
   add t2, len
   bl c, t1, t2
-  zjmp c, @oob
+  cjmp c, @oob
   ;;; self = malloc(sizeof(ByteSlice))
+  mov self, 0
   mov t1, 0
-  off t1, $ByteSlice.len
+  off t1, $ByteSlice.sizeof
   new self, t1
   zjmp self, @oom
   ;;; self->{len,str} = other->len - offset, &other->str[offset]
-  ld t1, other, $ByteSlice.len
+  ld t1, other, $lenstr.len
   sub t1, offset
   st self, $ByteSlice.len, t1
-  ld t1, other, $ByteSlice.str
+  ld t1, other, $lenstr.str
   add t1, offset
   st self, $ByteSlice.str, t1
+@oom:
   ;;; return self
   ret self
 @oob:
   mov %0, on-oob
   ret
+
+; Create a new slice from a byte string or existing slice.
+;
+; &(lenstr<_>) other
+; return(?*ByteSlice)
+.func ByteSlice.copy, other
+  .reg self
+  .reg t1
+  ;;; self = malloc(sizeof(ByteSlice))
+  mov self, 0
+  mov t1, 0
+  off t1, $ByteSlice.sizeof
+  new self, t1
+  zjmp self, @oom
+  ;;; self->{len,str} = other->len, other->str
+  ld t1, other, $ByteSlice.len
+  st self, $ByteSlice.len, t1
+  ld t1, other, $ByteSlice.str
+  st self, $ByteSlice.str, t1
 @oom:
+  ;;; return self
   ret self
+
 
 ; &ByteSlice self
 ; uint i
 ; return(byte)
 ; exit on-oob()
-.func ByteSlice.index self, i, on-oob
+.func ByteSlice.index, self, i, on-oob
   .reg t1
   ;;; if self->len <= i { exit on-oob() }
   ld t1, self, $ByteSlice.len
   ble t1, t1, i
-  cjmp t1, @ok
-  mov %0, on-oob
-  ret
-  @ok:
+  cjmp t1, @oob
   ;;; return self->str[i]
   ld t1, self, $ByteSlice.str
   add t1, i
   ldb t1, t1
   ret t1
+@oob:
+  mov %0, on-oob
+  ret
 
-.func ByteSlice.pop self, on-nil
+.func ByteSlice.pop, self, on-nil
   .reg out, len
   .reg t1, t2
   ;;; if self->len == 0 { exit on-nil() }

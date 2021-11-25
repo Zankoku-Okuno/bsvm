@@ -21,7 +21,7 @@
 ;
 ; uint cap0: initial capacity
 ; return(?*ByteBuf: pointer to new buffer)
-.func ByteBuf.new cap0
+.func ByteBuf.new, cap0
   .reg out, str
   .reg t1
   ;;; malloc(sizeof(ByteBuf))
@@ -51,7 +51,7 @@
 ;
 ; *ByteBuf self
 ; return()
-.func ByteBuf.del self
+.func ByteBuf.del, self
   .reg str
   ;;; free(self->str), free(self)
   ld str, self, $ByteBuf.str
@@ -66,7 +66,7 @@
 ; uint size
 ; return()
 ; exit nomem()
-.func ByteBuf.resize self, size, nomem
+.func ByteBuf.resize, self, size, nomem
   .reg c
   .reg t1
   ;;; if size < self->len
@@ -104,7 +104,7 @@
 ; byte byte
 ; return()
 ; exit nomem()
-.func ByteBuf.append self, byte, nomem
+.func ByteBuf.append, self, byte, nomem
   .reg c, cap, len, str
   ;;; cap, len, str = self->{cap,len,str}
   ld cap, self, $ByteBuf.cap

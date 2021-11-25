@@ -1,0 +1,59 @@
+;;; struct Asm {
+  ;;; unpack struct set-once {
+    ;;; shebang: ?*lenstr<*>
+    .def Asm.shebang 0
+    ;;; entrypoint: ?*lenstr<*>
+    .def Asm.entrypoint 1
+  ;;; }
+  ;;; unpack struct current {
+    ;;; filename: ?&strz
+    .def Asm.filename 2
+    ;;; lineno: uint
+    .def Asm.lineno 3
+    ;;; namespace: ?*lenstr<*>
+    .def Asm.namespace 4
+  ;;; }
+  ;;; struct tab {
+    ;;; global: TODO
+    .def Asm.tab.global 5
+    ;;; const: TODO
+    .def Asm.tab.const 6
+    ;;; reg: TODO
+    .def Asm.tab.reg 7
+    ;;; label: TODO
+    .def Asm.tab.label 8
+  ;;; }
+  ;;; code: *ByteBuf
+  .def Asm.code 9
+  ;;; suspensions: TODO
+  .def Asm.suspensions 10
+;;; }
+.def Asm.sizeof 11
+
+.func Asm.new
+  .reg self
+  .reg t1
+  mov t1, 0
+  off t1, $Asm.sizeof
+  new self, t1
+  mov t1, 0
+  st self, $Asm.shebang, t1
+  st self, $Asm.entrypoint, t1
+  st self, $Asm.filename, t1
+  st self, $Asm.lineno, t1
+  st self, $Asm.namespace, t1
+  ; TODO tables
+  st self, $Asm.code, t1
+  ; TODO suspensions
+  ret self
+
+.func Asm.startFile, self, fnamez
+  .reg t1
+  ;;; self->{filename,lineno} = fnamez, 1
+  st self, $Asm.filename, fnamez
+  mov t1, 1
+  st self, $Asm.lineno, t1
+  ret
+.func Asm.endFile, self
+  ;;; TODO
+  ret

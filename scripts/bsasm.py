@@ -171,12 +171,12 @@ class Asm:
     # finalize last function
     self.finalize_function()
     # extract arguments
-    tmp = args.split(' ')
+    tmp = [ x.strip() for x in args.split(',') ]
     if len(tmp) == 0:
       raise AsmExn("missing function name")
     else:
-      name = tmp[0]
-      params = [param.strip() for param in args[len(name):].strip().split(',') if param.strip()]
+      name = tmp[0].strip()
+      params = [x for x in tmp[1:] if x]
     # define function name/label
     if re.match(r"^[a-zA-Z0-9._-]+$", name):
       self.functionName = name

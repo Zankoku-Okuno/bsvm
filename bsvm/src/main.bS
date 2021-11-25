@@ -11,6 +11,9 @@
   mov ofilelen, 0
   mov ofilestr, 0
   mov noOpts, $False
+  ;;; asm = Asm.new()
+  jal &Asm.new
+  into asm
 
   ;;; for (i = 1, i < argc, ++i) {
   mov i, 1
@@ -127,15 +130,89 @@
   ;;; exit(0)
   mov %0, 0
   exit %0
+  ; FIXME free the asm
 
 
-.func asmFile self, fnamez
-  ;;; TODO
-  .reg fp
-  strm fp, 1
+.func asmFile, self, fnamez
+  .reg fp, line
+  .reg t1, t2
+;  ;;; DEBUG
+;    ;;; Print.asciiz(stderr, fnamez + '\n')
+;    strm fp, 2
+;    jal &Print.asciiz, fp, fnamez
+;    jal &Print.nl, fp
+  ;;; fp = fopen(fnamez, 'r')
+  open 0, fp, fnamez
+  zjmp fp, @error.no-fp
+  ;;; Asm.startFile(self, fnamez)
+  jal &Asm.startFile, self, fnamez
+  ;;; loop {
+  @loop:
+    ;;; line = File.readline(fp)
+    lia t1, @loop.done
+    lia t2, @error
+    jal &File.readline, fp, t1, t2
+    into line
+    ;;; asmLine(self, line)
+    jal &asmLine, self, line
+    ;;; ByteBuf.del(line)
+    jal &ByteBuf.del, line
+  ;;; }
+  jmp @loop
+  @loop.done:
+  ;;; Asm.endFile(self); fclose(fp); return
+  jal &Asm.endFile, self
+  clos fp
+  ret
+@error:
+  clos fp
+@error.no-fp:
+  ;;; die(main.msg.err.fileRead + fnamez + "\n")
+  strm fp, 2
+  lia t1, &main.msg.err.fileRead
+  jal &Print.asciiz, fp, t1
   jal &Print.asciiz, fp, fnamez
-  jar &Print.nl, fp
+  jal &Print.nl, fp
+  mov %0, 1
+  exit %0
+
+; self: &Asm
+; line: &ByteBuf
+.func asmLine, self, line
+  .reg line.split
+  off line, $ByteBuf.lenstr
+  ;;; DEBUG
+    .reg df, d1
+    strm df, 2
+    jal &Print.lenstr, df, line
+    jal &Print.nl, df
+  jal &Parse.line, line
+  into line.split
+  ;;; DEBUG
+    zjmp line.split, @null-line
+    mov d1, 116; 't'
+    putb df, d1
+    ld d1, line.split, $Line.type
+    jal &Print.char, df, d1
+    mov d1, 32; ' '
+    putb df, d1
+    mov d1, 96; '\`'
+    putb df, d1
+    ld d1, line.split, $Line.name
+    jal &Print.lenstr, df, d1
+    mov d1, 96; '\`'
+    putb df, d1
+    jal &Print.nl, df
+  jal &Line.del, line.split
+  @null-line:
+  ret
+
 
 .func _start
   ;;; TODO initialize constants
   jar &main
+
+; goto here if memory is ever exhausted
+oom:
+  ; TODO
+  hcf

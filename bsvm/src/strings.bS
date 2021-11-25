@@ -36,3 +36,6 @@ main.msg.err.missingOutput:
 main.msg.err.doubleOutput:
 .ascii 'Only one output file is allowed',10,0
 
+main.msg.err.fileRead:
+.ascii 'Error reading file: ',0
+

@@ -1,0 +1,50 @@
+; Read a line from a file pointer and return it in a new ByteBuf.
+; Stops at UNIX newlines or EOF.
+;
+; fp: file
+; return *ByteBuf
+; exit on-eof()
+; exit on-error()
+.func File.readline, fp, on-eof, on-error
+  .reg buf, char
+  .reg nomem
+  .reg c, t1
+  lia nomem, @error
+  ;;; char = getc(fp); when char < 0 {exit on-error()}; when char == EOF {exit on-eof()}
+  getb char, fp
+  lt c, char, 0
+  cjmp c, @error.no-buf
+  eq c, char, 256
+  cjmp c, @eof
+  ;;; buf = ByteBuf.new(128)
+  mov t1, 128
+  jal &ByteBuf.new, t1 ; 120 characters is a reasonably long line,
+                       ; so we shouldn't need to realloc much for normal text
+  into buf
+  zjmp buf, @error.no-buf
+  ;;; loop {
+  @loop:
+    ;;; while char != '\n'
+    eq c, char, 10
+    cjmp c, @loop.done
+    ;;; ByteBuf.append(buf, char)
+    jal &ByteBuf.append, buf, char, nomem
+    ;;; char = getc(fp)
+    getb char, fp
+    ;;; when char < 0 { exit on-error() }
+    lt c, char, 0
+    cjmp c, @error
+  ;;; } while char != 256
+  eq c, char, 256
+  zjmp c, @loop
+  @loop.done:
+  ;;; return buf
+  ret buf
+@eof:
+  mov %0, on-eof
+  ret
+@error:
+  jal &ByteBuf.del, buf
+@error.no-buf:
+  mov %0, on-error
+  ret

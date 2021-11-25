@@ -14,7 +14,10 @@ BSASM=../scripts/bsasm.py
     "$LIB/ByteSlice.bS" \
     "$LIB/ByteBuf.bS" \
     "$LIB/ArrayBuf.bS" \
+    "$LIB/File.bS" \
     "$LIB/Print.bS" \
+    "$SRC/types.bS" \
+    "$SRC/parse.bS" \
     "$SRC/strings.bS" \
     "$SRC/main.bS"
 
