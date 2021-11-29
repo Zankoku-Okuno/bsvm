@@ -1,4 +1,8 @@
 ; This file contains helper functions for writing human-readble data.
+;
+; export Print.nl
+; export Print.{lenstr,asciiz}
+; export Print.{byte,word}
 
 ; Print a (UNIX-style) newline
 .func Print.nl, fp
@@ -30,6 +34,8 @@
   ;;; return
   ret
 
+; Print a word as unsigned hexadecimal, including leading zeros.
+; There is no prefix/suffix to indicate the base, just the digits.
 .func Print.word, fp, val
   .reg i, nybble
   .reg c
@@ -49,6 +55,9 @@
   cjmp i, @loop
   ret
 
+; Helper procedure for Print.{byte,word}.
+; Print a nybble.
+; If the passed value is not in the range 0xF, the result is undefined.
 .func Print.nybble, fp, val
   .reg c
   ;;; val += '0'
@@ -62,12 +71,14 @@
   putb fp, val
   ret
 
-.func Print.char, fp, char
+; Print a byte with two hexadecimal digits.
+; Like Print.word, this only prints the digits, nothing more.
+.func Print.byte, fp, b
   .reg mask
   .reg c, t1
   ;;; {
-    ;;; t1 = ((char >> 4) & 0x0F) + 48
-    szr t1, char, 4
+    ;;; t1 = ((b >> 4) & 0x0F) + 48
+    szr t1, b, 4
     and t1, 0Fh
     add t1, 48
     ;;; when !(t1 < 58) { t1 += 65 - 58 }
@@ -79,8 +90,8 @@
     putb fp, t1
   ;;; }
   ;;; {
-    ;;; t1 = (char & 0x0F) + 48
-    mov t1, char
+    ;;; t1 = (b & 0x0F) + 48
+    mov t1, b
     and t1, 0Fh
     add t1, 48
     ;;; when !(t1 < 58) { t1 += 65 - 58 }

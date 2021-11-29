@@ -1,0 +1,77 @@
+.entrypoint &main
+
+.func main
+  .reg fp
+  strm fp, 1
+  jal &test.nl, fp
+  jal &test.lenstr, fp
+  jal &test.asciiz, fp
+  jal &test.byte, fp
+  jal &test.word, fp
+  mov %0, 0
+  exit %0
+
+.func test.nl, fp
+  jar &Print.nl, fp
+
+
+hello.msg:
+  .ascii 'Hello, world!'
+hello.end:
+  .ascii 0
+
+.func test.lenstr, fp
+  .reg lenstr, len = lenstr, str
+  .reg t1
+  mov len, &hello.end - &hello.msg
+  lia str, &hello.msg
+  lea t1, lenstr
+  jal &Print.lenstr, fp, t1
+  jar &Print.nl, fp
+
+.func test.asciiz, fp
+  .reg t1
+  lia t1, &hello.msg
+  jal &Print.asciiz, fp, t1
+  jar &Print.nl, fp
+
+.func test.byte, fp
+  .reg b, i, j
+  .reg c, space, nl
+  mov space, 32
+  mov nl, 10
+  mov b, 0
+  mov i, 0
+  @line:
+    mov j, 0
+    @byte:
+      jal &Print.byte, fp, b
+      putb fp, space
+      add j, 1
+      add b, 1
+      lt c, j, 16
+      cjmp c, @byte
+    putb fp, nl
+    add i, 1
+    lt c, i, 16
+    cjmp c, @line
+  ret
+
+.func test.word, fp
+  .reg w
+  .reg space, nl
+  mov space, 32
+  mov nl, 10
+  mov w, 0
+    jal &Print.word, fp, w
+    putb fp, space
+  mov w, deadbeefh
+    jal &Print.word, fp, w
+    putb fp, nl
+  mov w, 0123456789abcdefh
+    jal &Print.word, fp, w
+    putb fp, space
+  mov w, fedcba9876543210h
+    jal &Print.word, fp, w
+    putb fp, nl
+  ret

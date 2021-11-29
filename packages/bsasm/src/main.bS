@@ -132,7 +132,9 @@
   exit %0
   ; FIXME free the asm
 
-
+; Feed a file into the assembler.
+; self: &Asm
+; fnamez: *asciiz
 .func asmFile, self, fnamez
   .reg fp, line
   .reg t1, t2
@@ -176,6 +178,8 @@
   mov %0, 1
   exit %0
 
+; Feed a line into the assembler.
+;
 ; self: &Asm
 ; line: &ByteBuf
 .func asmLine, self, line
@@ -183,7 +187,7 @@
   off line, $ByteBuf.lenstr
   ;;; DEBUG
     .reg df, d1
-    strm df, 2
+    strm df, 1
     jal &Print.lenstr, df, line
     jal &Print.nl, df
   jal &Parse.line, line
@@ -193,7 +197,7 @@
     mov d1, 116; 't'
     putb df, d1
     ld d1, line.split, $Line.type
-    jal &Print.char, df, d1
+    jal &Print.byte, df, d1
     mov d1, 32; ' '
     putb df, d1
     mov d1, 96; '\`'
@@ -211,8 +215,3 @@
 .func _start
   ;;; TODO initialize constants
   jar &main
-
-; goto here if memory is ever exhausted
-oom:
-  ; TODO
-  hcf

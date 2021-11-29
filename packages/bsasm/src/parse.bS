@@ -1,3 +1,8 @@
+; This contains data describing a line:
+;   both the type of the line, and
+;   references to the extracted (but not-yet fully parsed) references to
+;     the name of the label/directive/instruction, and
+;     any arguments.
 ;;; struct Line {
   ;;; type: LineType
   .def Line.type 0
@@ -8,6 +13,7 @@
 ;;; }
 .def Line.sizeof 3
 
+; Describes whether an input line is a label, directive, or instruction.
 ;;; enum LineType {
   ;;; label = 0
   .def LineType.label 0
@@ -17,6 +23,7 @@
   .def LineType.instr 2
 ;;; }
 
+; Destroy a line created by Parse.line
 .func Line.del, self
   .reg t1
   ;;; free(self->name)
@@ -29,10 +36,11 @@
   free self
   ret
 
-
-; TODO Parse.line should create a new *Line
+; Create a new Line struct given a single line from an input file.
+; Returns null when the input line is empty (also ignoring comments).
+;
 ; line: &lenstr<_>
-; return(?*Line)
+; return ?*Line
 .func Parse.line, line
   .reg self, type, name, args
   .reg char0
@@ -43,19 +51,15 @@
   into line
   ;;; Parse.skipWs(line)
   jal &Parse.skipWs, line
-  ;;; if line->len == 0 { return NULL }
+  ;;; if line->len == 0 { goto empty-line }
   ld t1, line, $ByteSlice.len
-  cjmp t1, @non-nil
-  ret zero
-  ;;; } elif line->str[0] == ';' { return NULL }
-  @non-nil:
+  zjmp t1, @empty-line
+  ;;; } elif line->str[0] == ';' { goto empty-line }
   ld t1, line, $ByteSlice.str
   ldb char0, t1
   eq c, char0, 59
-  zjmp c, @non-comment
-  ret zero
+  cjmp c, @empty-line
   ;;; } elif line->str[0] == '.' {
-  @non-comment:
   eq c, char0, 46
   zjmp c, @non-directive
     ;;; ByteSlice.pop(line, undefined)
@@ -99,9 +103,15 @@
       jar &Parse.args, line, type, name
     ;;; }
   ;;; }
+@empty-line:
+  ;;; free(line); return NULL
+  jal &ByteSlice.del, line
+  ret zero
 
+; Consume the longest prefix of the input line that matches r/[A-Za-z0-9@._-]+/.
+;
 ; line: &ByteSlice
-; return(*ByteSlice)
+; return *ByteSlice
 .func Parse.name, line
   .reg name, i, char
   .reg zero, c, t1
@@ -109,7 +119,6 @@
   ;;; name = ByteSlice.copy(line)
   jal &ByteSlice.copy, line
   into name
-  zjmp name, &oom
   ;;; i = 0; loop {
   mov i, 0
   @loop:
@@ -153,15 +162,20 @@
   st name, $ByteSlice.len, i
   ret name
 
+; Helper function that extracts comma-separated args and create a Line.
+;
 ; line: *ByteSlice
 ; type: LineType
 ; name: *ByteSlice
+; return *Line
+; TODO exit error(InvalidArgsError)
 .func Parse.args, line, type, name
   .reg self, args
   .reg t1
   ; TODO actually split arguments by comma (outside of sqlstrings)
   ;;; DELME
     mov args, 0
+  ; TODO free the input line (since its just a slice for parsing)
   ;;; self = malloc(sizeof(Line))
   mov t1, 0
   off t1, $Line.sizeof

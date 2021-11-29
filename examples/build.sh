@@ -6,7 +6,7 @@ cd "$HERE"
 
 UNHEX=./hex2bin.sh
 BSASM=../scripts/bsasm.py
-LIB=../packages/stdlib
+LIB=../packages/stdlib/src
 SRC=.
 
 

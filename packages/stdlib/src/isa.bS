@@ -51,7 +51,7 @@
 ;
 ; see also: lenstr, which is the recommended (byte)string format for general use.
 ;;; struct strz<uint: n> {
-  ;;; str: [n]byte
+  ;;; str: [n]positive_byte
   ;;; zero: byte = 0
 ;;; }
 

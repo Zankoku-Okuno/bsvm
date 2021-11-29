@@ -504,7 +504,8 @@ static inline
 void vmRealloc(Machine* self) {
   size_t ptr = readVarint(&self->ip);
   size_t src = readVarint(&self->ip);
-  self->top->r[ptr].bptr = realloc(self->top->r[ptr].bptr, self->top->r[src].bits);
+  byte* new = realloc(self->top->r[ptr].bptr, self->top->r[src].bits);
+  self->top->r[ptr].bptr = new;
 }
 
 // 0x44 OFF r<dst>, reg<src>

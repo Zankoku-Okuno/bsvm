@@ -1,0 +1,5 @@
+;comment
+
+  .shebang /usr/bin/env bsvm
+  @foo:
+   hcf

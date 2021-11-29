@@ -1,3 +1,4 @@
+; This struct contains all the internal state needed to perform assembly of bsvm assembly code.
 ;;; struct Asm {
   ;;; unpack struct set-once {
     ;;; shebang: ?*lenstr<*>
@@ -30,6 +31,9 @@
 ;;; }
 .def Asm.sizeof 11
 
+; Create the state needed for an assembly operation.
+;
+; return *Asm
 .func Asm.new
   .reg self
   .reg t1
@@ -47,6 +51,10 @@
   ; TODO suspensions
   ret self
 
+; Call before beginning to feed a file into the assembler.
+;
+; self: &Asm
+; fnamez: &asciiz
 .func Asm.startFile, self, fnamez
   .reg t1
   ;;; self->{filename,lineno} = fnamez, 1
@@ -54,6 +62,10 @@
   mov t1, 1
   st self, $Asm.lineno, t1
   ret
+
+; Call once a file has been completely fed to the assembler.
+;
+; self: &Asm
 .func Asm.endFile, self
   ;;; TODO
   ret

@@ -5,6 +5,8 @@
 ; export ByteBuf.{new,del}
 ; export ByteBuf.resize
 ; export ByteBuf.append
+; export ByteBuf.unsafeFreeze
+
 
 
 ;;; struct ByteBuf {
@@ -18,12 +20,15 @@
 .def ByteBuf.sizeof 1 + $lenstr.sizeof
 
 ; Create a new bytebuffer.
+; Fails is initial capacity is zero.
 ;
 ; uint cap0: initial capacity
 ; return(?*ByteBuf: pointer to new buffer)
 .func ByteBuf.new, cap0
   .reg out, str
   .reg t1
+  ;;; if cap0 == 0 { return NULL }
+  zjmp cap0, @no-out
   ;;; malloc(sizeof(ByteBuf))
   mov t1, 0
   off t1, $ByteBuf.sizeof
@@ -61,6 +66,7 @@
   ret
 
 ; Grow capacity or shrink length.
+; Exits to nomem if size was zero.
 ;
 ; &ByteBuf self
 ; uint size
@@ -69,7 +75,9 @@
 .func ByteBuf.resize, self, size, nomem
   .reg c
   .reg t1
-  ;;; if size < self->len
+  ;;; if size == 0 { exit nomem() }
+  zjmp size, @allocError
+  ;;; if size < self->len {
   ld t1, self, $ByteBuf.len
   bl c, size, t1
   zjmp c, @larger
@@ -77,25 +85,25 @@
     st self, $ByteBuf.len, size
     ret
   @larger:
-  ;;; elif (self->cap < size)
+  ;;; } elif (self->cap < size) {
   ld t1, self, $ByteBuf.cap
   bl c, t1, size
   zjmp c, @end-cond
     ;;; new = realloc(self->str, size)
-    ld t1, self, $ByteBuf.str
-    rnew t1, size
-    ;;; when !new
-    cjmp t1, @ok
-      ;;; exit nomem()
-      mov %0, nomem
-      ret
-    @ok:
-    ;;; self->{size,str} = size, new
-    st self, $ByteBuf.sizeof, size
-    st self, $ByteBuf.str, t1
-  ;;; else {}
+    .reg new
+    ld new, self, $ByteBuf.str
+    rnew new, size
+    ;;; when !new { exit nomem() }
+    zjmp new, @allocError
+    ;;; self->{cap,str} = size, new
+    st self, $ByteBuf.cap, size
+    st self, $ByteBuf.str, new
+  ;;; } else {}
 @end-cond:
   ;;; return
+  ret
+@allocError:
+  mov %0, nomem
   ret
 
 ; Add a single byte to the end of the buffer
@@ -135,3 +143,21 @@
   st self, $ByteBuf.len, len
   ;;; return
   ret
+
+; Convert the given byte buffer into a lenstr in-place.
+; That is, the pointer passed in is always equal to the one passed out.
+; This function shrinks the allocated memory of the byte array, but not itself (on the off-chance the *ByteBuf was not allocated by the NEW instruction.
+;
+; self: *ByteBuf
+; return *lenstr<*>
+.func ByteBuf.unsafeFreeze, self
+  .reg len, str
+  ;;; len, str = self->len, realloc(self->str, self->len)
+  ld len, self, $ByteBuf.len
+  ld str, self, $ByteBuf.str
+  rnew str, len
+  ;;; (self as *lenstr<*>)->{len,str} = len, str
+  st self, $lenstr.len, len
+  st self, $lenstr.str, str
+  ;;; return self as *lenstr<*>
+  ret self

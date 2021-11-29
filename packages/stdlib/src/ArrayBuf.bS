@@ -97,8 +97,8 @@
       mov %0, nomem
       ret
     @ok:
-    ;;; self->{size,arr} = size,new
-    st self, $ArrayBuf.sizeof, size
+    ;;; self->{cap,arr} = size,new
+    st self, $ArrayBuf.cap, size
     st self, $ArrayBuf.arr, t1
   ;;; else {}
 @end-cond:

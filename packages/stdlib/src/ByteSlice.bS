@@ -6,7 +6,9 @@
 ;
 ; export $ByteSlice.*
 ; export ByteSlice.{new,del}
+; export ByteSlice.copy
 ; export ByteSlice.index
+; export ByteSlice.pop
 
 ;;; type ByteSlice = lenstr<&>
   .def ByteSlice.len $lenstr.len
@@ -38,10 +40,8 @@
   off t1, $ByteSlice.sizeof
   new self, t1
   zjmp self, @oom
-  ;;; self->{len,str} = other->len - offset, &other->str[offset]
-  ld t1, other, $lenstr.len
-  sub t1, offset
-  st self, $ByteSlice.len, t1
+  ;;; self->{len,str} = len, &other->str[offset]
+  st self, $ByteSlice.len, len
   ld t1, other, $lenstr.str
   add t1, offset
   st self, $ByteSlice.str, t1
@@ -50,6 +50,11 @@
   ret self
 @oob:
   mov %0, on-oob
+  ret
+
+; self: *ByteSlice
+.func ByteSlice.del, self
+  free self
   ret
 
 ; Create a new slice from a byte string or existing slice.
@@ -94,6 +99,9 @@
   mov %0, on-oob
   ret
 
+; self: &ByteSlice
+; return byte
+; exit on-nil()
 .func ByteSlice.pop, self, on-nil
   .reg out, len
   .reg t1, t2
@@ -101,8 +109,7 @@
   ld len, self, $ByteSlice.len
   zjmp len, @nil
   ;;; out = self->str[0]
-  mov t1, self
-  add t1, $ByteSlice.str
+  ld t1, self, $ByteSlice.str
   ldb out, t1
   ;;; self->len--
   sub len, 1

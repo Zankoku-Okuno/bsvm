@@ -1,0 +1,149 @@
+.entrypoint &main
+
+.func main
+  .reg fp
+  strm fp, 1
+  jal &test.newDel, fp
+  jal &test.append, fp
+  jal &test.resize, fp
+  jal &test.unsafeFreeze, fp
+  mov %0, 0
+  exit %0
+
+.func test.newDel, fp
+  .reg buf
+  .reg space
+  mov space, 32
+  .reg t1
+  mov t1, 16
+  jal &ByteBuf.new, t1
+  into buf
+  zjmp buf, @oom
+  ld t1, buf, $ByteBuf.cap
+  jal &Print.word, fp, t1
+  putb fp, space
+  ld t1, buf, $ByteBuf.len
+  jal &Print.word, fp, t1
+  jal &Print.nl, fp
+  jar &ByteBuf.del, buf
+@oom:
+  lia t1, &oomMsg
+  jar &Print.asciiz, fp, t1
+
+.func test.append, ofp
+  .reg ifp, byte, buf
+  .reg ifname, ifname.len = ifname, ifname.str, ifname.p
+  .reg oom
+  lia oom, @oom
+  .reg c, t1
+  lea ifname.p, ifname
+  mov t1, 1
+  argv ifname.p, t1
+  open 0, ifp, ifname.str
+  mov t1, 1
+  jal &ByteBuf.new, t1
+  into buf
+  zjmp buf, @oom
+  @loop:
+    getb byte, ifp
+    eq c, byte, 256
+    cjmp c, @loop.end
+    jal &ByteBuf.append, buf, byte, oom
+    ld t1, buf, $ByteBuf.cap
+    jal &Print.word, ofp, t1
+    lia t1, &colonMsg
+    jal &Print.asciiz, ofp, t1
+    mov t1, buf
+    off t1, 1
+    jal &Print.lenstr, ofp, t1
+    jal &Print.nl, ofp
+    jmp @loop
+  @loop.end:
+  clos ifp
+  jar &ByteBuf.del, buf
+  ret
+@oom:
+  lia t1, &oomMsg
+  jar &Print.asciiz, ofp, t1
+
+.func test.resize, fp
+  .reg buf
+  .reg oom
+  lia oom, @oom
+  .reg t1
+  ; try to shrink
+  jal &test._loadFile
+  into buf
+  mov t1, 5
+  jal &ByteBuf.resize, buf, t1
+  ld t1, buf, $ByteBuf.cap
+  jal &Print.word, fp, t1
+  lia t1, &colonMsg
+  jal &Print.asciiz, fp, t1
+  mov t1, buf
+  off t1, 1
+  jal &Print.lenstr, fp, t1
+  jal &Print.nl, fp
+  jal &ByteBuf.del, buf
+  ; try to grow
+  jal &test._loadFile
+  into buf
+  mov t1, 100h
+  jal &ByteBuf.resize, buf, t1, oom
+  ld t1, buf, $ByteBuf.cap
+  jal &Print.word, fp, t1
+  lia t1, &colonMsg
+  jal &Print.asciiz, fp, t1
+  mov t1, buf
+  off t1, 1
+  jal &Print.lenstr, fp, t1
+  jal &Print.nl, fp
+  jal &ByteBuf.del, buf
+  ret
+@oom:
+  lia t1, &oomMsg
+  jar &Print.asciiz, fp, t1
+
+.func test.unsafeFreeze, fp
+  .reg buf
+  .reg t1
+  jal &test._loadFile
+  into buf
+  jal &ByteBuf.unsafeFreeze, buf
+  jal &Print.lenstr, fp, buf
+  jal &Print.nl, fp
+  ld t1, buf, $lenstr.str
+  free t1
+  free buf
+  ret
+
+colonMsg:
+  .ascii ': ',0
+oomMsg:
+  .ascii 'out of memory', 10, 0
+
+.func test._loadFile
+  .reg ifp, byte, buf
+  .reg ifname, ifname.len = ifname, ifname.str, ifname.p
+  .reg oom
+  lia oom, @oom
+  .reg c, t1
+  lea ifname.p, ifname
+  mov t1, 1
+  argv ifname.p, t1
+  open 0, ifp, ifname.str
+  mov t1, 10h
+  jal &ByteBuf.new, t1
+  into buf
+  zjmp buf, @oom
+  @loop:
+    getb byte, ifp
+    eq c, byte, 256
+    cjmp c, @loop.end
+    jal &ByteBuf.append, buf, byte, oom
+    jmp @loop
+  @loop.end:
+  clos ifp
+  ret buf
+@oom:
+  hcf
