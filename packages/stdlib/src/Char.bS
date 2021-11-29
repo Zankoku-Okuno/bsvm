@@ -1,0 +1,80 @@
+; Library that defines constants and procedures to manipulate ASCII text.
+
+.def Char.space 20h
+.def Char.tab 09h
+.def Char.nl 0Ah
+
+.def Char.zero 30h
+.def Char.nine 39h
+.def Char.A 41h
+.def Char.Z 5Ah
+.def Char.a 61h
+.def Char.z 7Ah
+
+; Return True iff the input char is alphabetic r/[A-Za-z]/
+;
+; char: byte
+.func Char.isAlpha, char
+  .reg c, t1
+  ;;; when char < 'A' { return False }
+  bl c, char, $Char.A
+  cjmp c, @no
+  ;;; when char <= 'Z' { return True }
+  ble c, char, $Char.Z
+  cjmp c, @yes
+  ;;; when char < 'a' { return False }
+  bl c, char, $Char.a
+  cjmp c, @no
+  ;;; when char <= 'z' { return True }
+  ble c, char, $Char.z
+  cjmp c, @yes
+  ;;; return False
+@no:
+  mov t1, $False
+  ret t1
+@yes:
+  mov t1, $True
+  ret t1
+
+; Return True iff the input char is alphanumeric r/[A-Za-z0-9]/
+;
+; char: byte
+.func Char.isAlphaNum, char
+  .reg c, t1
+  ;;; when char < '0' { return False }
+  bl c, char, $Char.zero
+  cjmp c, @no
+  ;;; when char <= '9' { return True }
+  ble c, char, $Char.nine
+  cjmp c, @yes
+  ;;; return Char.isAlpha(char)
+  jar &Char.isAlpha, char
+@no:
+  mov t1, $False
+  ret t1
+@yes:
+  mov t1, $True
+  ret t1
+
+; Return True iff the char is present in the passes asciiz string
+;
+; char: byte
+; set: *asciiz
+.func Char.in, char, set
+  .reg x
+  .reg c
+  ;;; c = False
+  mov c, $False
+  ;;; while (x = *set++) != 0 {
+  @loop:
+  ldb x, set
+  zjmp x, @loop.done
+  add set, 1
+    ;;; when c = (char == x) { return c } // which at this point is true
+    eq c, char, x
+    zjmp c, @loop
+  ;;; }
+  @loop.done:
+  ;;; return c // which is either true if we broke out
+  ;;;          // or false if we exited the loop normally
+  ret c

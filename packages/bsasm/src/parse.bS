@@ -127,28 +127,12 @@
     jal &ByteSlice.index, line, zero, t1
     into char
     ;;; while char in [a-zA-Z0-9@._-]
-      lt c, char, 65; >= 'A'
-      not c, c
-      lte t1, char, 90; <= 'Z'
-      and c, t1; 'A' <= <= 'Z'
+      jal &Char.isAlphaNum, char
+      into c
       cjmp c, @loop.no-break
-      lt c, char, 97; >= 'a'
-      not c, c
-      lte t1, char, 122; <= 'z'
-      and c, t1; 'a' <= <= 'z'
-      cjmp c, @loop.no-break
-      lt c, char, 48; >= '0'
-      not c, c
-      lte t1, char, 57; <= '9'
-      and c, t1; '0' <= <= '9'
-      cjmp c, @loop.no-break
-      eq c, char, 64; == '@'
-      cjmp c, @loop.no-break
-      eq c, char, 46; == '.'
-      cjmp c, @loop.no-break
-      eq c, char, 95; == '_'
-      cjmp c, @loop.no-break
-      eq c, char, 45; == '-'
+      lia t1, &Parse.CHARSET.name
+      jal &Char.in, char, t1
+      into c
       cjmp c, @loop.no-break
       jmp @loop.end
   @loop.no-break:
@@ -161,6 +145,9 @@
   ;;; return name{len = i}
   st name, $ByteSlice.len, i
   ret name
+
+Parse.CHARSET.name:
+  .ascii '@.-_',0
 
 ; Helper function that extracts comma-separated args and create a Line.
 ;

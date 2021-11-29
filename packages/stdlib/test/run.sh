@@ -13,7 +13,7 @@ OUTPUT=./files
 
 LIB=../src
 STDLIB=""
-for lib in isa Print ByteSlice ByteBuf; do
+for lib in isa Print Char ByteSlice ByteBuf; do
     STDLIB="$STDLIB $LIB/$lib.bS"
 done
 
@@ -22,7 +22,7 @@ if [ "$1" = "--valgrind" ]; then
     shift
 fi
 if [ "$#" = 0 ]; then
-    suites="Print ByteSlice ByteBuf"
+    suites="Print Char ByteSlice ByteBuf"
 else
     suites=$@
 fi
