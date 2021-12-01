@@ -107,10 +107,18 @@
 
 
 ; Print some crap to stderr as a debug technique
-.func Print.crap
+.func Print.hello
   .reg fp, msg
   strm fp, 2
   lia msg, @msg
   jar &Print.asciiz, fp, msg
 @msg:
   .ascii 'HELLO',10,0
+; Print some other crap to stderr as a debug technique
+.func Print.goodbye
+  .reg fp, msg
+  strm fp, 2
+  lia msg, @msg
+  jar &Print.asciiz, fp, msg
+@msg:
+  .ascii 'GOODBYE',10,0

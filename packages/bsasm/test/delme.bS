@@ -3,3 +3,5 @@
   .shebang /usr/bin/env bsvm
   @foo:
    hcf
+jal &Print.asciiz, fp, a    , b, c, d
+.ascii 'hello, world!',0

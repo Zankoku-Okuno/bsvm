@@ -1,32 +1,35 @@
 ; Library that defines constants and procedures to manipulate ASCII text.
 
-.def Char.space 20h
-.def Char.tab 09h
-.def Char.nl 0Ah
+.def Ascii.space 20h
+.def Ascii.tab 09h
+.def Ascii.nl 0Ah
 
-.def Char.zero 30h
-.def Char.nine 39h
-.def Char.A 41h
-.def Char.Z 5Ah
-.def Char.a 61h
-.def Char.z 7Ah
+.def Ascii.zero 30h
+.def Ascii.nine 39h
+.def Ascii.A 41h
+.def Ascii.Z 5Ah
+.def Ascii.a 61h
+.def Ascii.z 7Ah
+
+.def Ascii.comma 2Ch
+.def Ascii.semicolon 3Bh
 
 ; Return True iff the input char is alphabetic r/[A-Za-z]/
 ;
 ; char: byte
-.func Char.isAlpha, char
+.func Ascii.isAlpha, char
   .reg c, t1
   ;;; when char < 'A' { return False }
-  bl c, char, $Char.A
+  bl c, char, $Ascii.A
   cjmp c, @no
   ;;; when char <= 'Z' { return True }
-  ble c, char, $Char.Z
+  ble c, char, $Ascii.Z
   cjmp c, @yes
   ;;; when char < 'a' { return False }
-  bl c, char, $Char.a
+  bl c, char, $Ascii.a
   cjmp c, @no
   ;;; when char <= 'z' { return True }
-  ble c, char, $Char.z
+  ble c, char, $Ascii.z
   cjmp c, @yes
   ;;; return False
 @no:
@@ -39,16 +42,16 @@
 ; Return True iff the input char is alphanumeric r/[A-Za-z0-9]/
 ;
 ; char: byte
-.func Char.isAlphaNum, char
+.func Ascii.isAlphaNum, char
   .reg c, t1
   ;;; when char < '0' { return False }
-  bl c, char, $Char.zero
+  bl c, char, $Ascii.zero
   cjmp c, @no
   ;;; when char <= '9' { return True }
-  ble c, char, $Char.nine
+  ble c, char, $Ascii.nine
   cjmp c, @yes
-  ;;; return Char.isAlpha(char)
-  jar &Char.isAlpha, char
+  ;;; return Ascii.isAlpha(char)
+  jar &Ascii.isAlpha, char
 @no:
   mov t1, $False
   ret t1
@@ -60,7 +63,7 @@
 ;
 ; char: byte
 ; set: *asciiz
-.func Char.in, char, set
+.func Ascii.in, char, set
   .reg x
   .reg c
   ;;; c = False

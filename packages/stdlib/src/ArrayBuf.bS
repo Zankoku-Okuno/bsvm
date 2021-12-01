@@ -67,7 +67,7 @@
 
 ; Grow capacity or shrink length.
 ;
-; &ArrayBuf self
+; &ArrayBuf<_> self
 ; uint size
 ; return()
 ; exit nomem()
@@ -107,8 +107,8 @@
 
 ; Add a single word to the end of the buffer
 ;
-; &ArrayBuf self
-; word datum
+; &ArrayBuf<a> self
+; datum: a
 ; return()
 ; exit nomem()
 .func ArrayBuf.append, self, datum, nomem
@@ -140,7 +140,7 @@
   ;;; self->arr[len] = datum
   mov t1, arr
   off t1, len
-  stb arr, datum
+  st t1, datum
   ;;; self->len = len + 1
   add len, 1
   st self, $ArrayBuf.len, len

@@ -99,6 +99,26 @@
   mov %0, on-oob
   ret
 
+; Drop up to n bytes from the start of the slice
+;
+; self: &ByteSlice
+; n: number of bytes to drop
+.func ByteSlice.drop, self, n
+  .reg len
+  .reg c, t1
+  ;;; when self->len < n { n = self->len }
+  ld len, self, $ByteSlice.len
+  bl c, len, n
+  cmov c, n, len
+  ;;; self->{len,str} = self->len - n, self->str + n
+  sub len, n
+  st self, $ByteSlice.len, len
+  ld t1, self, $ByteSlice.str
+  add t1, n
+  st self, $ByteSlice.str, t1
+  ;;; return
+  ret
+
 ; self: &ByteSlice
 ; return byte
 ; exit on-nil()

@@ -11,7 +11,7 @@ LIB=../stdlib/src
 SRC=./src
 "$BSASM" \
     "$LIB/isa.bS" \
-    "$LIB/Char.bS" \
+    "$LIB/Ascii.bS" \
     "$LIB/Print.bS" \
     "$LIB/ByteSlice.bS" \
     "$LIB/ByteBuf.bS" \
@@ -20,6 +20,7 @@ SRC=./src
     "$SRC/types.bS" \
     "$SRC/parse.bS" \
     "$SRC/strings.bS" \
+    "$SRC/debug.bS" \
     "$SRC/main.bS"
 
 mkdir -p "$BIN"

@@ -645,7 +645,7 @@ void setEq(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t src1 = readVarint(&self->ip);
   size_t src2 = readVarint(&self->ip);
-  self->top->r[dst].bits = self->top->r[src1].sbits == self->top->r[src2].sbits ? 1 : 0;
+  self->top->r[dst].bits = (self->top->r[src1].sbits == self->top->r[src2].sbits) ? 1 : 0;
 }
 
 // 0x55 EQ r<dst>, r<src>, imm<const>
@@ -654,7 +654,7 @@ void setEqImm(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t src = readVarint(&self->ip);
   intptr_t imm = readVarint(&self->ip);
-  self->top->r[dst].bits = self->top->r[src].sbits == imm ? 1 : 0;
+  self->top->r[dst].bits = (self->top->r[src].sbits == imm) ? 1 : 0;
 }
 
 // 0x56 NE r<dst>, r<src1>, r<src2>
@@ -664,7 +664,7 @@ void setNeq(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t src1 = readVarint(&self->ip);
   size_t src2 = readVarint(&self->ip);
-  self->top->r[dst].bits = self->top->r[src1].sbits != self->top->r[src2].sbits ? 1 : 0;
+  self->top->r[dst].bits = (self->top->r[src1].sbits != self->top->r[src2].sbits) ? 1 : 0;
 }
 
 // 0x57 NE r<dst>, r<src>, imm<const>
@@ -673,7 +673,7 @@ void setNeqImm(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t src = readVarint(&self->ip);
   intptr_t imm = readVarint(&self->ip);
-  self->top->r[dst].bits = self->top->r[src].sbits != imm ? 1 : 0;
+  self->top->r[dst].bits = (self->top->r[src].sbits != imm) ? 1 : 0;
 }
 
 // 0x58 BL r<dst>, r<src1>, r<src2>
@@ -683,7 +683,7 @@ void setBelow(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t src1 = readVarint(&self->ip);
   size_t src2 = readVarint(&self->ip);
-  self->top->r[dst].bits = self->top->r[src1].bits < self->top->r[src2].bits ? 1 : 0;
+  self->top->r[dst].bits = (self->top->r[src1].bits < self->top->r[src2].bits) ? 1 : 0;
 }
 
 // 0x59 BL r<dst>, r<src>, imm<const>
@@ -692,7 +692,7 @@ void setBelowImm(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t src = readVarint(&self->ip);
   uintptr_t imm = readVarint(&self->ip);
-  self->top->r[dst].bits = self->top->r[src].bits < imm ? 1 : 0;
+  self->top->r[dst].bits = (self->top->r[src].bits < imm) ? 1 : 0;
 }
 
 // 0x5A BLE r<dst>, r<src1>, r<src2>
@@ -702,7 +702,7 @@ void setBelowEq(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t src1 = readVarint(&self->ip);
   size_t src2 = readVarint(&self->ip);
-  self->top->r[dst].bits = self->top->r[src1].bits <= self->top->r[src2].bits ? 1 : 0;
+  self->top->r[dst].bits = (self->top->r[src1].bits <= self->top->r[src2].bits) ? 1 : 0;
 }
 
 // 0x5B BLE r<dst>, r<src>, imm<const>
@@ -711,7 +711,7 @@ void setBelowEqImm(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t src = readVarint(&self->ip);
   uintptr_t imm = readVarint(&self->ip);
-  self->top->r[dst].bits = self->top->r[src].bits <= imm ? 1 : 0;
+  self->top->r[dst].bits = (self->top->r[src].bits <= imm) ? 1 : 0;
 }
 
 // 0x5C LT r<dst>, r<src1>, r<src2>
@@ -721,7 +721,7 @@ void setLt(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t src1 = readVarint(&self->ip);
   size_t src2 = readVarint(&self->ip);
-  self->top->r[dst].bits = self->top->r[src1].sbits < self->top->r[src2].sbits ? 1 : 0;
+  self->top->r[dst].bits = (self->top->r[src1].sbits < self->top->r[src2].sbits) ? 1 : 0;
 }
 
 // 0x5D LT r<dst>, r<src>, imm<const>
@@ -730,7 +730,7 @@ void setLtImm(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t src = readVarint(&self->ip);
   intptr_t imm = readVarint(&self->ip);
-  self->top->r[dst].bits = self->top->r[src].sbits < imm ? 1 : 0;
+  self->top->r[dst].bits = (self->top->r[src].sbits < imm) ? 1 : 0;
 }
 
 // 0x5E LTE r<dst>, r<src1>, r<src2>
@@ -740,7 +740,7 @@ void setLte(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t src1 = readVarint(&self->ip);
   size_t src2 = readVarint(&self->ip);
-  self->top->r[dst].bits = self->top->r[src1].sbits <= self->top->r[src2].sbits ? 1 : 0;
+  self->top->r[dst].bits = (self->top->r[src1].sbits <= self->top->r[src2].sbits) ? 1 : 0;
 }
 
 // 0x5F LTE r<dst>, r<src>, imm<const>
@@ -749,7 +749,7 @@ void setLteImm(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t src = readVarint(&self->ip);
   intptr_t imm = readVarint(&self->ip);
-  self->top->r[dst].bits = self->top->r[src].sbits <= imm ? 1 : 0;
+  self->top->r[dst].bits = (self->top->r[src].sbits <= imm) ? 1 : 0;
 }
 
 
@@ -789,6 +789,7 @@ void zmov(Machine* self) {
   size_t dst = readVarint(&self->ip);
   size_t src = readVarint(&self->ip);
   if (self->top->r[cond].bits == 0) {
+    fprintf(stderr, "MOVED\n");
     self->top->r[dst].bits = self->top->r[src].bits;
   }
 }

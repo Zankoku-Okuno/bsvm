@@ -127,10 +127,10 @@
       exit %0
   ;;; }
   @loop.done:
-  ;;; exit(0)
+  ;;; Asm.del(asm); exit(0)
+  jal &Asm.del, asm
   mov %0, 0
   exit %0
-  ; FIXME free the asm
 
 ; Feed a file into the assembler.
 ; self: &Asm
@@ -185,28 +185,13 @@
 .func asmLine, self, line
   .reg line.split
   off line, $ByteBuf.lenstr
-  ;;; DEBUG
-    .reg df, d1
-    strm df, 1
-    jal &Print.lenstr, df, line
-    jal &Print.nl, df
   jal &Parse.line, line
   into line.split
   ;;; DEBUG
-    zjmp line.split, @null-line
-    mov d1, 116; 't'
-    putb df, d1
-    ld d1, line.split, $Line.type
-    jal &Print.byte, df, d1
-    mov d1, 32; ' '
-    putb df, d1
-    mov d1, 96; '\`'
-    putb df, d1
-    ld d1, line.split, $Line.name
-    jal &Print.lenstr, df, d1
-    mov d1, 96; '\`'
-    putb df, d1
-    jal &Print.nl, df
+    .reg df, d1
+    strm df, 1
+    jal &Print.Line, df, line.split
+  zjmp line.split, @null-line
   jal &Line.del, line.split
   @null-line:
   ret

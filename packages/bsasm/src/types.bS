@@ -51,6 +51,19 @@
   ; TODO suspensions
   ret self
 
+.func Asm.del, self
+  .reg t1
+  ;;; free(self->shebang)
+  ld t1, self, $Asm.shebang
+  free t1
+  ;;; free(self->entrypoint)
+  ld t1, self, $Asm.entrypoint
+  ; TODO
+  free t1
+  ;;; free(self); return
+  free self
+  ret
+
 ; Call before beginning to feed a file into the assembler.
 ;
 ; self: &Asm

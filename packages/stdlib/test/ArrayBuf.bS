@@ -1,0 +1,141 @@
+.entrypoint &main
+
+.func main
+  .reg fp, sep
+  strm fp, 1
+  lia sep, @separator
+  jal &test.newDel, fp
+  jal &Print.asciiz, fp, sep
+  jal &test.append, fp
+  jal &Print.asciiz, fp, sep
+  jal &test.resize, fp
+  mov %0, 0
+  exit %0
+@separator:
+  .ascii '======',10,0
+
+oomMsg:
+  .ascii 'out of memory', 10, 0
+colonMsg:
+  .ascii ': ',0
+
+.func test.newDel, fp
+  .reg buf
+  .reg space
+  mov space, 32
+  .reg t1
+  mov t1, 16
+  jal &ArrayBuf.new, t1
+  into buf
+  zjmp buf, @oom
+  ld t1, buf, $ArrayBuf.cap
+  jal &Print.word, fp, t1
+  putb fp, space
+  ld t1, buf, $ArrayBuf.len
+  jal &Print.word, fp, t1
+  jal &Print.nl, fp
+  jar &ArrayBuf.del, buf
+@oom:
+  lia t1, &oomMsg
+  jar &Print.asciiz, fp, t1
+
+.func test.append, fp
+  .reg buf
+  .reg space, oom
+  mov space, 32
+  lia oom, @oom
+  .reg c, t1
+  mov t1, 1
+  jal &ArrayBuf.new, t1
+  into buf
+  ; add one element
+  lia t1, &msg.1
+  jal &ArrayBuf.append, buf, t1, oom
+  ld t1, buf, $ArrayBuf.len
+  jal &Print.word, fp, t1
+  jal &Print.nl, fp
+  ld t1, buf, $ArrayBuf.arr
+  ld t1, t1
+  jal &Print.asciiz, fp, t1
+  ; add another, testing growth
+  lia t1, &msg.2
+  jal &ArrayBuf.append, buf, t1, oom
+  ld t1, buf, $ArrayBuf.len
+  jal &Print.word, fp, t1
+  jal &Print.nl, fp
+  ld t1, buf, $ArrayBuf.arr
+  ld t1, t1
+  jal &Print.asciiz, fp, t1
+  ld t1, buf, $ArrayBuf.arr
+  off t1, 1
+  ld t1, t1
+  jal &Print.asciiz, fp, t1
+  jar &ArrayBuf.del, buf
+@oom:
+  lia t1, &oomMsg
+  jar &Print.asciiz, fp, t1
+
+.func test.resize, fp
+  .reg buf
+  .reg oom
+  lia oom, @oom
+  .reg t1
+  ; try to shrink
+  jal &test._loadBuf
+  into buf
+  mov t1, 2
+  jal &ArrayBuf.resize, buf, t1
+  ld t1, buf, $ArrayBuf.cap
+  jal &Print.word, fp, t1
+  lia t1, &colonMsg
+  jal &Print.asciiz, fp, t1
+  ld t1, buf, $ArrayBuf.len
+  jal &Print.word, fp, t1
+  jal &Print.nl, fp
+  jal &ArrayBuf.del, buf
+  ; try to grow
+  jal &test._loadBuf
+  into buf
+  mov t1, 10h
+  jal &ArrayBuf.resize, buf, t1, oom
+  ld t1, buf, $ArrayBuf.cap
+  jal &Print.word, fp, t1
+  lia t1, &colonMsg
+  jal &Print.asciiz, fp, t1
+  ld t1, buf, $ArrayBuf.len
+  jal &Print.word, fp, t1
+  jal &Print.nl, fp
+  jal &ArrayBuf.del, buf
+  ret
+@oom:
+  lia t1, &oomMsg
+  jar &Print.asciiz, fp, t1
+
+
+.func test._loadBuf
+  .reg buf, oom
+  lia oom, @oom
+  .reg t1
+  mov t1, 4
+  jal &ArrayBuf.new, t1
+  into buf
+  lia t1, &msg.1
+  jal &ArrayBuf.append, buf, t1, oom
+  lia t1, &msg.2
+  jal &ArrayBuf.append, buf, t1, oom
+  lia t1, &msg.3
+  jal &ArrayBuf.append, buf, t1, oom
+  ret buf
+@oom:
+  .reg fp
+  strm fp, 2
+  lia t1, &oomMsg
+  jar &Print.asciiz, fp, t1
+
+
+msg.1:
+  .ascii 'Message 1',10,0
+msg.2:
+  .ascii 'Message 2',10,0
+msg.3:
+  .ascii 'Message 3',10,0

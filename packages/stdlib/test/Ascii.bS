@@ -13,7 +13,7 @@
   .reg c, i
   mov i, 0
   @loop:
-    jal &Char.isAlpha, i
+    jal &Ascii.isAlpha, i
     into c
     zjmp c, @loop.continue
     putb fp, i
@@ -29,7 +29,7 @@
   .reg c, i
   mov i, 0
   @loop:
-    jal &Char.isAlphaNum, i
+    jal &Ascii.isAlphaNum, i
     into c
     zjmp c, @loop.continue
     putb fp, i
@@ -47,7 +47,7 @@
   .reg c, i
   mov i, 0
   @loop:
-    jal &Char.in, i, set
+    jal &Ascii.in, i, set
     into c
     zjmp c, @loop.continue
     putb fp, i

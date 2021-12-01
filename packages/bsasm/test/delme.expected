@@ -1,8 +1,14 @@
-;comment
-
-  .shebang /usr/bin/env bsvm
-t01 `shebang`
-  @foo:
-t00 `@foo`
-   hcf
-t02 `hcf`
+directive shebang
+	/usr/bin/env bsvm
+label @foo
+instruction hcf
+instruction jal
+	&Print.asciiz
+	fp
+	a
+	b
+	c
+	d
+directive ascii
+	'hello, world!'
+	0
